@@ -42,7 +42,6 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "daphne",
     "django.contrib.staticfiles",
-    "compta",
     "django_filters",
     "rest_framework",
     "rest_framework_simplejwt",
