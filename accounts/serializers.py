@@ -7,7 +7,7 @@ from rest_framework import serializers
 from accounts.helpers import validate_password
 import constant
 from django.utils.translation import gettext_lazy as _
-from .models import AppName, User
+from .models import  User
 import string, secrets
 
 
