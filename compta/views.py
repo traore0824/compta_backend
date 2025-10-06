@@ -1,277 +1,293 @@
-from django.shortcuts import render
-from django.contrib.auth.models import User
-from rest_framework import viewsets, status
-from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
-from compta.serializers import (
-    ChangePasswordSerializer,
-    LoginSerializer,
-    LogoutSerializer,
-    RefreshObtainSerializer,
-    RegisterUserSerializer,
-    ResetPasswordConfirmSerializer,
-    SendOtpSerializer,
-    UpdateUserSerializer,
-    UserDetailSerializer,
-)
-from django.db.models import Q
-from compta.throttles import (
-    ChangePasswordThrottle,
-    LoginThrottle,
-    ResetPasswordThrottle,
-)
-from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+import os
+import requests
+from rest_framework import decorators, permissions
+from django.utils.dateparse import parse_datetime, parse_date
+from compta.models import MobCashSetting, Transaction, UserTransactionFilter
+from django.utils import timezone
+from django.db.models import Sum
+from typing import List
 from rest_framework.response import Response
-from rest_framework.decorators import action
+from datetime import timedelta
+from asgiref.sync import async_to_sync
+from channels.layers import get_channel_layer
+from compta.serializers import TransactionSerializer
+from django.contrib.auth.models import User
 
 
-class UserAuthentication(viewsets.ModelViewSet):
-    queryset = User.objects.all()
-    lookup_field = "id"
+class ComptatView(decorators.APIView):
+    permission_classes = [permissions.IsAdminUser]
 
-    def get_queryset(self):
-        user = self.request.user
-        queryset = super().get_queryset()
-        if self.action == "listUser" and not user.is_staff:
-            queryset = queryset.filter(pk=user.pk)
-        return queryset
+    def get(self, request, *args, **kwargs):
+        transactions = Transaction.objects.all().order_by("-created_at")
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+        last = request.GET.get("last")
 
-    def get_throttles(self):
-        if self.action == "login":
-            return [LoginThrottle()]
-        elif self.action == "change_password":
-            return [ChangePasswordThrottle()]
-        elif self.action == "confirm_reset_password":
-            return [ResetPasswordThrottle()]
-        return super().get_throttles()
+        source = request.GET.get("source")
+        network = request.GET.get("network")
+        api = request.GET.get("api")
+        type = request.GET.get("type")
+        mobcash = request.GET.get("mobcash")
 
-    def get_permissions(self):
-        if self.action in [
-            "confirm_reset_password",
-            "login",
-            "refresh_token",
-            "send_opt",
-            "register",
-        ]:
-            self.permission_classes = [AllowAny]
-
-        elif self.action in ["listUser", "toggle_block", "toggle_agent"]:
-            self.permission_classes = [IsAdminUser]
-        elif self.action in [
-            "me",
-            "remove",
-            "logout",
-            "update_user",
-            "change_password",
-        ]:
-            self.permission_classes = [IsAuthenticated]
-        return super().get_permissions()
-
-    def get_serializer_class(self):
-        if self.action == "register":
-            return RegisterUserSerializer
-        elif self.action == "send_opt":
-            return SendOtpSerializer
-        elif self.action == "confirm_reset_password":
-            return ResetPasswordConfirmSerializer
-        elif self.action == "change_password":
-            return ChangePasswordSerializer
-        elif self.action in ["me", "listUser"]:
-            return UserDetailSerializer
-        elif self.action == "login":
-            return LoginSerializer
-        elif self.action == "logout":
-            return LogoutSerializer
-        elif self.action == "refresh_token":
-            return RefreshObtainSerializer
-        elif self.action == "update_user":
-            return UpdateUserSerializer
-
-    @action(["PATCH"], detail=False)
-    def update_user(self, request, *args, **kwargs):
-        serializer = self.get_serializer(
-            data=request.data, partial=True, instance=self.request.user
-        )
-        serializer.is_valid(raise_exception=True)
-        obj = serializer.save()
-        return Response(UserDetailSerializer(obj).data, status=status.HTTP_200_OK)
-
-    @action(["GET"], detail=False)
-    def listUser(self, request, *args, **kwargs):
-        q = self.request.GET.get("q")
-        if q:
-            users = User.objects.filter(
-                Q(email__icontains=q)
-                | Q(referral_code__icontains=q)
-                | Q(phone__icontains=q)
-                | Q(first_name__icontains=q)
-                | Q(last_name__icontains=q)
-            )
+        now = timezone.now()
+        if last:
+            if last == "yesterday":
+                start_date = now - timedelta(days=1)
+                end_date = now
+            elif last == "3_days":
+                start_date = now - timedelta(days=3)
+            elif last == "7_days":
+                start_date = now - timedelta(days=7)
+            elif last == "30_days":
+                start_date = now - timedelta(days=30)
+            elif last == "1_year":
+                start_date = now - timedelta(days=365)
+            elif last in ["always", "all"]:
+                start_date = None
+                end_date = None
         else:
-            users = User.objects.all()
-        data = UserDetailSerializer(users, many=True).data
-        return Response(data=data)
+            if not start_date:
+                start_date = now
+        if start_date:
+            if isinstance(start_date, str):
+                start_date = parse_datetime(start_date)
+            transactions = transactions.filter(created_at__gte=start_date)
 
-    @action(["GET"], detail=False)
-    def me(self, request, *args, **kwargs):
-        user = self.request.user
-        return Response(
-            UserDetailSerializer(user).data,
-            status=status.HTTP_200_OK,
-        )
-
-    @action(["POST"], detail=False)
-    def login(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        email = serializer.validated_data.get("email")
-        password = serializer.validated_data.get("password")
-        user = User.objects.filter(email=email).first()
-
-        if not user:
-            return Response(
-                {"message": "INCORRECT_EMAIL_OR_PASSWORD"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        if not user.check_password(password):
-            return Response(
-                {"message": "INCORRECT_EMAIL_OR_PASSWORD", "success": False},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        user.save()
-
-        refresh = RefreshToken.for_user(user)
-
-        return Response(
-            {
-                "refresh": str(refresh),
-                "access": str(refresh.access_token),
-                "exp": refresh.access_token.get("exp"),
-                "user": UserDetailSerializer(user).data,
+        if end_date:
+            if isinstance(end_date, str):
+                end_date = parse_datetime(end_date)
+            transactions = transactions.filter(created_at__lte=end_date)
+        if source:
+            transactions = transactions.filter(source=source)
+        if network:
+            transactions = transactions.filter(network=network)
+        if api:
+            transactions = transactions.filter(api=api)
+        if mobcash:
+            transactions = transactions.filter(mobcash=mobcash)
+        if type:
+            transactions = transactions.filter(type=type)
+        data = {
+            "filters": {
+                "start_date": start_date,
+                "end_date": end_date,
+                "last": last,
+                "source": source,
+                "network": network,
+                "api": api,
+                "mobcash": mobcash,
+                "type": type,
+            },
+            "total": transactions.count(),
+            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
+            or 0,
+            "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"] or 0,
+            "amount": transactions.aggregate(total=Sum("amount"))["total"] or 0,
+            "mobcash_stats": get_mobcash_stat(transactions),
+            "api_stats": get_api_stat(transactions),
+            "network_stats": get_network_stat(transactions),
+            "source_stats": get_source_stat(transactions),
+            "type_stats": get_type_stat(transactions),
+            # "combination_stats": generate_all_combinations(transactions),
+        }
+        UserTransactionFilter.objects.update_or_create(
+            user=request.user,
+            defaults={
+                "last": last,
+                "start_date": start_date,
+                "end_date": end_date,
+                "source": source,
+                "network": network,
+                "api": api,
+                "type": type,
+                "mobcash": mobcash,
             },
         )
 
-    @action(["POST"], detail=False)
-    def register(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
+        return Response(data)
+
+
+def get_mobcash_stat(transactions):
+    mobcash_apps = MobCashSetting.objects.all()
+    data = {}
+    for mobcash in mobcash_apps:
+        name = mobcash.name
+        txs = transactions.filter(mobcash=name)
+        data[name] = {
+            "total": txs.count(),
+            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
+            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+        }
+    return data
+
+
+def get_api_stat(transactions):
+    data = {}
+    for value, label in Transaction.API_CHOICES:
+        txs = transactions.filter(api=value)
+        data[value] = {
+            "label": label,
+            "total": txs.count(),
+            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
+            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+        }
+    return data
+
+
+def get_network_stat(transactions):
+    data = {}
+    for value, label in Transaction.NETWORK_CHOICES:
+        txs = transactions.filter(network=value)
+        data[value] = {
+            "label": label,
+            "total": txs.count(),
+            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
+            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+        }
+    return data
+
+
+def get_source_stat(transactions):
+    data = {}
+    for value, label in Transaction.SOURCE_CHOICES:
+        txs = transactions.filter(source=value)
+        data[value] = {
+            "label": label,
+            "total": txs.count(),
+            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
+            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+        }
+    return data
+
+
+def get_type_stat(transactions):
+    data = {}
+    for value, label in Transaction.TYPE_CHOICES:
+        txs = transactions.filter(type=value)
+        data[value] = {
+            "label": label,
+            "total": txs.count(),
+            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
+            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+        }
+    return data
+
+
+def send_stats_to_user():
+    user_filter = UserTransactionFilter.objects.first()
+    transactions = Transaction.objects.all().order_by("-created_at")
+    if user_filter.last:
+        now = timezone.now()
+        if user_filter.last == "yesterday":
+            start_date = now - timedelta(days=1)
+            end_date = now
+        elif user_filter.last == "3_days":
+            start_date = now - timedelta(days=3)
+            end_date = None
+        elif user_filter.last == "7_days":
+            start_date = now - timedelta(days=7)
+            end_date = None
+        elif user_filter.last == "30_days":
+            start_date = now - timedelta(days=30)
+            end_date = None
+        elif user_filter.last == "1_year":
+            start_date = now - timedelta(days=365)
+            end_date = None
+        elif user_filter.last in ["all", "always"]:
+            start_date = None
+            end_date = None
+    else:
+        start_date = user_filter.start_date
+        end_date = user_filter.end_date
+
+    if start_date:
+        transactions = transactions.filter(created_at__gte=start_date)
+    if end_date:
+        transactions = transactions.filter(created_at__lte=end_date)
+
+    if user_filter.source:
+        transactions = transactions.filter(source=user_filter.source)
+    if user_filter.network:
+        transactions = transactions.filter(network=user_filter.network)
+    if user_filter.api:
+        transactions = transactions.filter(api=user_filter.api)
+    if user_filter.mobcash:
+        transactions = transactions.filter(mobcash=user_filter.mobcash)
+    if user_filter.type:
+        transactions = transactions.filter(type=user_filter.type)
+    stats = {
+        "type": "stats_update",
+        "context": "user_filter",
+        "data": {
+            "total": transactions.count(),
+            "amount": transactions.aggregate(total=Sum("amount"))["total"] or 0,
+            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
+            or 0,
+            "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"] or 0,
+        },
+    }
+    channel_layer = get_channel_layer()
+    async_to_sync(channel_layer.group_send)(
+        f"user_{User.objects.first()}_channel", {"type": "stat_data", "message": stats}
+    )
+
+
+def send_telegram_message(chat_id, content):
+    bot_token = os.getenv("TOKEN_BOT")
+    api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+
+    data = {
+        "chat_id": chat_id,
+        "text": content,
+    }
+    try:
+
+        response = requests.post(api_url, data=data)
+        return response.json()
+    except:
+        return None
+
+
+class CreateTransaction(decorators.APIView):
+    def post(self, request, *args, **kwargs):
+        serializer = TransactionSerializer(request.data)
         serializer.is_valid(raise_exception=True)
-        obj = serializer.save()
+        transaction = serializer.save()
+        send_stats_to_user()
+        return Response(TransactionSerializer(transaction).data)
+
+
+class BalanceViews(decorators.APIView):
+    def get(self, request, *args, **kwargs):
+        date_str = request.GET.get("date")
+        transactions = Transaction.objects.all()
+
+        if date_str:
+            date = parse_date(date_str)
+            end_datetime = timezone.make_aware(
+                timezone.datetime.combine(date, timezone.datetime.max.time())
+            )
+            transactions = transactions.filter(created_at__lte=end_datetime)
+        api_balances = {}
+        apis = transactions.values_list("api", flat=True).distinct()
+        for api in apis:
+            last_tx = transactions.filter(api=api).order_by("-created_at").first()
+            if last_tx:
+                api_balances[api] = last_tx.api_balance
+
+        mobcash_balances = {}
+        mobcashes = transactions.values_list("mobcash", flat=True).distinct()
+        for mobcash in mobcashes:
+            last_tx = (
+                transactions.filter(mobcash=mobcash).order_by("-created_at").first()
+            )
+            if last_tx:
+                mobcash_balances[mobcash] = last_tx.mobcash_balance
+
         return Response(
-            UserDetailSerializer(obj).data,
-            status=status.HTTP_201_CREATED,
+            {
+                "date": date_str or "current",
+                "api_balances": api_balances,
+                "mobcash_balances": mobcash_balances,
+            }
         )
-
-    @action(["POST", "DELETE"], detail=False)
-    def remove(self, request, *args, **kwargs):
-        user_id = request.data.get("user_id", None)
-        if user_id:
-            user = User.objects.filter(id=user_id).first()
-            if user and self.request.user.is_superuser:
-                user.delete()
-                return Response({"success": True}, status=status.HTTP_204_NO_CONTENT)
-            else:
-                return Response({"success": False}, status=status.HTTP_404_NOT_FOUND)
-        else:
-            user = self.request.user
-            user.delete()
-            return Response(
-                {
-                    "success": True,
-                },
-                status=status.HTTP_204_NO_CONTENT,
-            )
-
-    @action(["POST"], detail=False)
-    def set_password(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        return Response({"detail": "Password changed successfully"})
-
-    @action(["POST"], detail=False)
-    def logout(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        try:
-            refresh_token = serializer.validated_data.get("refresh")
-            token = RefreshToken(refresh_token)
-            token.blacklist()
-            devices = FCMDevice.objects.filter(user=request.user)
-            if devices:
-                devices.delete()
-        except Exception as e:
-            return Response(
-                {"message": f"{str(e)}"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        return Response(status=status.HTTP_200_OK)
-
-    @action(["POST"], detail=False)
-    def change_password(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        old_password = serializer.validated_data.get("old_password")
-        new_password = serializer.validated_data.get("new_password")
-        user = self.request.user
-        if user.check_password(old_password):
-            user.set_password(new_password)
-            user.save()
-        else:
-            return Response(
-                {"INVALID_CURRENT_PASSWORD": "INCORRECT_PASSWORD"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        return Response({"success": True}, status=status.HTTP_200_OK)
-
-    @action(["POST"], detail=False)
-    def send_opt(self, request, *args, **kwargs):
-        serializers = self.get_serializer(data=request.data)
-        serializers.is_valid(raise_exception=True)
-        email = serializers.validated_data.get("email")
-        user = User.objects.filter(email=email).first()
-        if user:
-            otp = generate_otp()
-            user.otp = otp
-            user.save()
-
-            send_mails(
-                subject="Réinitialisation de mot de passe - BOX",
-                to_email=user.email,
-                context={"otp": otp},
-                template_name="send_opt.html",
-            )
-        return Response({"success": True}, status=status.HTTP_200_OK)
-    
-    @action(["POST"], detail=False)
-    def refresh_token(self, request, *args, **kwargs):
-        try:
-            serializer = RefreshObtainSerializer(data=request.data)
-            serializer.is_valid(raise_exception=True)
-            user_refresh_token = serializer.validated_data.get("refresh")
-            refresh = RefreshToken(user_refresh_token)
-            return Response(
-                {
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                    "date_exp": refresh.access_token["exp"],
-                }
-            )
-        except TokenError as e:
-            return Response({"error": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
-
-    @action(["POST"], detail=False)
-    def confirm_reset_password(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        otp = serializer.validated_data.get("otp")
-        user = User.objects.filter(otp=otp).first()
-        if not user:
-            return Response(
-                {"details": constant.USER_NOT_FOUND}, status=status.HTTP_404_NOT_FOUND
-            )
-        user.set_password(serializer.validated_data.get("new_password"))
-        user.save()
-        user.otp = None
-        return Response(
-            status=status.HTTP_200_OK,
-        )
-
-
-# Create your views here.
