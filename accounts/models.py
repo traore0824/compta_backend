@@ -1,7 +1,7 @@
 import uuid
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser
-from tinymce.models import HTMLField
+# from tinymce.models import HTMLField
 from .manager import UserManager
 
 
