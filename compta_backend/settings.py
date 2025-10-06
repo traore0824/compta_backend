@@ -79,6 +79,7 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'compta_backend.wsgi.application'
+ASGI_APPLICATION = "compta_backend.asgi.application"
 
 
 # Database
