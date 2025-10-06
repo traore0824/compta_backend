@@ -12,8 +12,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes, APIView
 from dateutil.relativedelta import relativedelta
 import constant
-
-from .models import User
+from django.contrib.auth.models import User
 from .serializers import (
     RefreshObtainSerializer,
     UpdateUserSerializer,

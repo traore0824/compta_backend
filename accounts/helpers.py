@@ -9,9 +9,8 @@ from django.conf import settings
 import string, secrets, random, re
 from django.core.mail import EmailMultiAlternatives
 from django.template.loader import render_to_string
-from logger import LoggerService
 from rest_framework.pagination import PageNumberPagination
-from .models import User
+from django.contrib.auth.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ def send_mails(subject, to_email, template_name, context={}, body=None):
         response = msg.send()
         return response
     except Exception as e:
-        LoggerService.e(f"Erreur lors de l'envoi de l'email: {str(e)}")
+        # LoggerService.e(f"Erreur lors de l'envoi de l'email: {str(e)}")
         return str(e)
 
 
