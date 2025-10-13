@@ -63,13 +63,13 @@ class AccountActivationSerializer(serializers.Serializer):
     otp = serializers.CharField()
 
 
-class LoginSerializer(serializers.ModelSerializer):
+class LoginSerializer(serializers.Serializer):
     email = serializers.CharField()
     password = serializers.CharField()
 
     class Meta:
         model = User
-        fields = ["id", "email_or_phone", "password"]
+        fields = ["email", "password"]
 
 
 class ChangePasswordSerializer(serializers.Serializer):
