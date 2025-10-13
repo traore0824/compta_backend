@@ -10,7 +10,7 @@ from rest_framework.response import Response
 from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from compta.serializers import TransactionSerializer
+# from compta.serializers import TransactionSerializer
 from django.contrib.auth.models import User 
 
 class ComptatView(decorators.APIView):
