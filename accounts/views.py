@@ -114,7 +114,7 @@ def login(request):
     serializer.is_valid(raise_exception=True)
     email = serializer.validated_data.get("email")
     password = serializer.validated_data.get("password")
-    user = User.objects.filter(email=email, is_delete=False).first()
+    user = User.objects.filter(email=email).first()
     if not user:
         return Response(
             {
