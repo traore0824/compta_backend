@@ -122,7 +122,7 @@ def login(request):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
-    auth_user = authenticate(email=user.email, password=password)
+    auth_user = authenticate(username=user.username, password=password)
 
     if auth_user is None:
         return Response(
