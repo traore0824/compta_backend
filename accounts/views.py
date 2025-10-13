@@ -112,39 +112,14 @@ def logout(request):
 def login(request):
     serializer = LoginSerializer(data=request.data)
     serializer.is_valid(raise_exception=True)
-    email_or_phone = serializer.validated_data.get("email_or_phone")
-    email = None
-    phone = None
-    try:
-        validate_email(email_or_phone)
-        email = email_or_phone
-    except Exception as e:
-        try:
-            int(email_or_phone)
-            phone = email_or_phone
-        except Exception as e:
-            pass
+    email = serializer.validated_data.get("email")
     password = serializer.validated_data.get("password")
-
-    if email:
-        user = User.objects.filter(email=email, is_delete=False).first()
-    else:
-        user = User.objects.filter(phone=phone, is_delete=False).first()
+    user = User.objects.filter(email=email, is_delete=False).first()
     if not user:
         return Response(
             {
-                "success": False,
-                "details": constant.INVALID_EMAIL_PASSWORD,
+                "INCORRECT_EMAIL_OR_PASSWORD": constant.INVALID_EMAIL_PASSWORD,
             },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
-    if user.is_delete:
-        return Response(
-            {"success": False, "details": f"{constant.INVALID_EMAIL_PASSWORD}"}
-        )
-    if user.is_block:
-        return Response(
-            {"details": "Votre compte est bloqué pour fraude "},
             status=status.HTTP_400_BAD_REQUEST,
         )
     auth_user = authenticate(email=user.email, password=password)
@@ -152,8 +127,7 @@ def login(request):
     if auth_user is None:
         return Response(
             {
-                "success": False,
-                "details": constant.INVALID_EMAIL_PASSWORD,
+                "INCORRECT_EMAIL_OR_PASSWORD": constant.INVALID_EMAIL_PASSWORD,
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
@@ -165,7 +139,7 @@ def login(request):
             "refresh": str(refresh),
             "access": str(refresh.access_token),
             "exp": timezone.datetime.fromtimestamp(refresh["exp"]).isoformat(),
-            "data": UserDetailSerializer(user).data,
+            "user": UserDetailSerializer(user).data,
         },
         status=status.HTTP_200_OK,
     )

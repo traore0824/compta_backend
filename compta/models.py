@@ -47,13 +47,13 @@ class Transaction(models.Model):
         return f"{self.reference} - {self.type} - {self.api}"
 
 
-class APISetting(models.Model):
+class APITransaction(models.Model):
     minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2)
     name = models.CharField(max_length=20, choices=API_CHOICES)
     can_send_alert = models.BooleanField(default=True)
 
 
-class MobCashSetting(models.Model):
+class MobCashApp(models.Model):
     minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2)
     name = models.CharField(max_length=20)
     can_send_alert = models.BooleanField(default=True)

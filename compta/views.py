@@ -2,7 +2,7 @@ import os
 import requests
 from rest_framework import decorators, permissions
 from django.utils.dateparse import parse_datetime, parse_date
-from compta.models import MobCashSetting, Transaction, UserTransactionFilter
+from compta.models import MobCashApp, Transaction, UserTransactionFilter
 from django.utils import timezone
 from django.db.models import Sum
 from typing import List
@@ -108,7 +108,7 @@ class ComptatView(decorators.APIView):
 
 
 def get_mobcash_stat(transactions):
-    mobcash_apps = MobCashSetting.objects.all()
+    mobcash_apps = MobCashApp.objects.all()
     data = {}
     for mobcash in mobcash_apps:
         name = mobcash.name

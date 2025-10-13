@@ -64,7 +64,7 @@ class AccountActivationSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.ModelSerializer):
-    email_or_phone = serializers.CharField()
+    email = serializers.CharField()
     password = serializers.CharField()
 
     class Meta:

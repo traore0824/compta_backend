@@ -3,7 +3,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from compta.models import APISetting, MobCashSetting, Notification, Transaction
+from compta.models import APITransaction, MobCashApp, Notification, Transaction
 from compta.utils import send_mails, valider_password
 from compta.view_2 import send_telegram_message
 
@@ -18,8 +18,8 @@ class TransactionSerializer(serializers.ModelSerializer):
         transaction_type = validated_data.get("type")
         api_name = validated_data.get("api")
 
-        mobcash_config, _ = MobCashSetting.objects.get_or_create(name=mobcash_name)
-        api_config, _ = APISetting.objects.get_or_create(name=api_name)
+        mobcash_config, _ = MobCashApp.objects.get_or_create(name=mobcash_name)
+        api_config, _ = APITransaction.objects.get_or_create(name=api_name)
 
         if transaction_type == "depot":
             validated_data["mobcash_fee"] = (mobcash_config.deposit_fee * validated_data.get("amount"))/100
