@@ -2,7 +2,7 @@ import os
 import requests
 from rest_framework import decorators, permissions
 from django.utils.dateparse import parse_datetime, parse_date
-from compta.models import MobCashApp, Transaction, UserTransactionFilter
+from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Transaction, UserTransactionFilter
 from django.utils import timezone
 from django.db.models import Sum
 from typing import List
@@ -12,6 +12,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from compta.serializers import TransactionSerializer
 from django.contrib.auth.models import User
+from django.utils.formats import number_format
 
 
 class ComptatView(decorators.APIView):
@@ -47,15 +48,16 @@ class ComptatView(decorators.APIView):
                 end_date = None
         else:
             if not start_date:
-                start_date = now
-        if start_date:
-            if isinstance(start_date, str):
-                start_date = parse_datetime(start_date)
-            transactions = transactions.filter(created_at__gte=start_date)
+                start_date = None  # Pas la date actuelle par défaut, mais None
 
+        if start_date and isinstance(start_date, str):
+            start_date = parse_datetime(start_date)
+        if end_date and isinstance(end_date, str):
+            end_date = parse_datetime(end_date)
+
+        if start_date:
+            transactions = transactions.filter(created_at__gte=start_date)
         if end_date:
-            if isinstance(end_date, str):
-                end_date = parse_datetime(end_date)
             transactions = transactions.filter(created_at__lte=end_date)
         if source:
             transactions = transactions.filter(source=source)
@@ -67,6 +69,82 @@ class ComptatView(decorators.APIView):
             transactions = transactions.filter(mobcash=mobcash)
         if type:
             transactions = transactions.filter(type=type)
+
+        # --- Calcul des soldes en respectant ta logique ---
+
+        # API Transactions balances
+        api_balances = {}
+        for api_obj in APITransaction.objects.all():
+            name = api_obj.name
+
+            # Filtres sur APIBalanceUpdate
+            balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
+            if start_date and end_date:
+                updates_in_period = balance_updates.filter(
+                    created_at__gte=start_date, created_at__lte=end_date
+                )
+            elif start_date and not end_date:
+                updates_in_period = balance_updates.filter(created_at__gte=start_date)
+            else:
+                updates_in_period = balance_updates.none()
+
+            if updates_in_period.exists():
+                last_update = updates_in_period.order_by("-created_at").first()
+                balance = last_update.balance
+            elif start_date:
+                # Pas de maj dans la période, cherche la dernière avant start_date
+                last_update_before = (
+                    balance_updates.filter(created_at__lt=start_date)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if last_update_before:
+                    balance = last_update_before.balance
+                else:
+                    balance = api_obj.balance  # fallback au solde de base
+            else:
+                # Pas de période, prend solde courant
+                balance = api_obj.balance
+            api_balances[name] = balance
+
+        # MobCashApp balances
+        mobcash_balances = {}
+        for mobcash_obj in MobCashApp.objects.all():
+            name = mobcash_obj.name
+
+            balance_updates = MobCashAppBalanceUpdate.objects.filter(
+                mobcash_balance=mobcash_obj
+            )
+            if start_date and end_date:
+                updates_in_period = balance_updates.filter(
+                    created_at__gte=start_date, created_at__lte=end_date
+                )
+            elif start_date and not end_date:
+                updates_in_period = balance_updates.filter(created_at__gte=start_date)
+            else:
+                updates_in_period = balance_updates.none()
+
+            if updates_in_period.exists():
+                last_update = updates_in_period.order_by("-created_at").first()
+                balance = last_update.balance
+            elif start_date:
+                last_update_before = (
+                    balance_updates.filter(created_at__lt=start_date)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if last_update_before:
+                    balance = last_update_before.balance
+                else:
+                    balance = mobcash_obj.balance
+            else:
+                balance = mobcash_obj.balance
+            mobcash_balances[name] = balance
+
+        total_api_balance = sum(api_balances.values())
+        total_mobcash_balance = sum(mobcash_balances.values())
+        total_balance = total_api_balance + total_mobcash_balance
+
         data = {
             "filters": {
                 "start_date": start_date,
@@ -88,8 +166,15 @@ class ComptatView(decorators.APIView):
             "network_stats": get_network_stat(transactions),
             "source_stats": get_source_stat(transactions),
             "type_stats": get_type_stat(transactions),
-            # "combination_stats": generate_all_combinations(transactions),
+            "balances": {
+                "api_balances": api_balances,
+                "mobcash_balances": mobcash_balances,
+                "total_api_balance": total_api_balance,
+                "total_mobcash_balance": total_mobcash_balance,
+                "total_balance": total_balance,
+            },
         }
+
         UserTransactionFilter.objects.update_or_create(
             user=request.user,
             defaults={
@@ -103,7 +188,6 @@ class ComptatView(decorators.APIView):
                 "mobcash": mobcash,
             },
         )
-
         return Response(data)
 
 
@@ -173,9 +257,11 @@ def get_type_stat(transactions):
     return data
 
 
+
 def send_stats_to_user():
     user_filter = UserTransactionFilter.objects.first()
     transactions = Transaction.objects.all().order_by("-created_at")
+
     if user_filter.last:
         now = timezone.now()
         if user_filter.last == "yesterday":
@@ -200,6 +286,11 @@ def send_stats_to_user():
         start_date = user_filter.start_date
         end_date = user_filter.end_date
 
+    if start_date and isinstance(start_date, str):
+        start_date = parse_datetime(start_date)
+    if end_date and isinstance(end_date, str):
+        end_date = parse_datetime(end_date)
+
     if start_date:
         transactions = transactions.filter(created_at__gte=start_date)
     if end_date:
@@ -215,22 +306,85 @@ def send_stats_to_user():
         transactions = transactions.filter(mobcash=user_filter.mobcash)
     if user_filter.type:
         transactions = transactions.filter(type=user_filter.type)
+
+    # Récupération des soldes API et MobCash avec la même logique que dans ComptatView.get
+
+    api_balances = {}
+    for api_obj in APITransaction.objects.all():
+        name = api_obj.name
+
+        balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
+        if start_date and end_date:
+            updates_in_period = balance_updates.filter(created_at__gte=start_date, created_at__lte=end_date)
+        elif start_date and not end_date:
+            updates_in_period = balance_updates.filter(created_at__gte=start_date)
+        else:
+            updates_in_period = balance_updates.none()
+
+        if updates_in_period.exists():
+            last_update = updates_in_period.order_by("-created_at").first()
+            balance = last_update.balance
+        elif start_date:
+            last_update_before = balance_updates.filter(created_at__lt=start_date).order_by("-created_at").first()
+            if last_update_before:
+                balance = last_update_before.balance
+            else:
+                balance = api_obj.balance
+        else:
+            balance = api_obj.balance
+        api_balances[name] = balance
+
+    mobcash_balances = {}
+    for mobcash_obj in MobCashApp.objects.all():
+        name = mobcash_obj.name
+
+        balance_updates = MobCashAppBalanceUpdate.objects.filter(mobcash_balance=mobcash_obj)
+        if start_date and end_date:
+            updates_in_period = balance_updates.filter(created_at__gte=start_date, created_at__lte=end_date)
+        elif start_date and not end_date:
+            updates_in_period = balance_updates.filter(created_at__gte=start_date)
+        else:
+            updates_in_period = balance_updates.none()
+
+        if updates_in_period.exists():
+            last_update = updates_in_period.order_by("-created_at").first()
+            balance = last_update.balance
+        elif start_date:
+            last_update_before = balance_updates.filter(created_at__lt=start_date).order_by("-created_at").first()
+            if last_update_before:
+                balance = last_update_before.balance
+            else:
+                balance = mobcash_obj.balance
+        else:
+            balance = mobcash_obj.balance
+        mobcash_balances[name] = balance
+
+    total_api_balance = sum(api_balances.values())
+    total_mobcash_balance = sum(mobcash_balances.values())
+    total_balance = total_api_balance + total_mobcash_balance
+
     stats = {
         "type": "stats_update",
         "context": "user_filter",
         "data": {
             "total": transactions.count(),
             "amount": transactions.aggregate(total=Sum("amount"))["total"] or 0,
-            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
-            or 0,
-            "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"] or 0,
+            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+            "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"],
+            "balances": {
+                "api_balances": api_balances,
+                "mobcash_balances": mobcash_balances,
+                "total_api_balance": total_api_balance,
+                "total_mobcash_balance": total_mobcash_balance,
+                "total_balance": total_balance,
+            }
         },
     }
     channel_layer = get_channel_layer()
     async_to_sync(channel_layer.group_send)(
-        f"user_{User.objects.first()}_channel", {"type": "stat_data", "message": stats}
+        f"user_{User.objects.first().id}_channel",
+        {"type": "stat_data", "message": stats},
     )
-
 
 def send_telegram_message(chat_id, content):
     bot_token = os.getenv("TOKEN_BOT")
@@ -256,38 +410,3 @@ class CreateTransaction(decorators.APIView):
         send_stats_to_user()
         return Response(TransactionSerializer(transaction).data)
 
-
-class BalanceViews(decorators.APIView):
-    def get(self, request, *args, **kwargs):
-        date_str = request.GET.get("date")
-        transactions = Transaction.objects.all()
-
-        if date_str:
-            date = parse_date(date_str)
-            end_datetime = timezone.make_aware(
-                timezone.datetime.combine(date, timezone.datetime.max.time())
-            )
-            transactions = transactions.filter(created_at__lte=end_datetime)
-        api_balances = {}
-        apis = transactions.values_list("api", flat=True).distinct()
-        for api in apis:
-            last_tx = transactions.filter(api=api).order_by("-created_at").first()
-            if last_tx:
-                api_balances[api] = last_tx.api_balance
-
-        mobcash_balances = {}
-        mobcashes = transactions.values_list("mobcash", flat=True).distinct()
-        for mobcash in mobcashes:
-            last_tx = (
-                transactions.filter(mobcash=mobcash).order_by("-created_at").first()
-            )
-            if last_tx:
-                mobcash_balances[mobcash] = last_tx.mobcash_balance
-
-        return Response(
-            {
-                "date": date_str or "current",
-                "api_balances": api_balances,
-                "mobcash_balances": mobcash_balances,
-            }
-        )

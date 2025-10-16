@@ -1,7 +1,7 @@
 import os
 import requests
 from rest_framework import decorators, permissions
-from django.utils.dateparse import parse_datetime,parse_date
+from django.utils.dateparse import parse_datetime, parse_date
 from compta.models import MobCashApp, Transaction, UserTransactionFilter
 from django.utils import timezone
 from django.db.models import Sum
@@ -10,16 +10,19 @@ from rest_framework.response import Response
 from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+
 # from compta.serializers import TransactionSerializer
-from django.contrib.auth.models import User 
+from django.contrib.auth.models import User
+
 
 class ComptatView(decorators.APIView):
     permission_classes = [permissions.IsAdminUser]
+
     def get(self, request, *args, **kwargs):
         transactions = Transaction.objects.all().order_by("-created_at")
         start_date = request.GET.get("start_date")
         end_date = request.GET.get("end_date")
-        last = request.GET.get("last")  
+        last = request.GET.get("last")
 
         source = request.GET.get("source")
         network = request.GET.get("network")
@@ -230,7 +233,7 @@ def send_stats_to_user():
     )
 
 
-def send_telegram_message(chat_id, content):
+def send_telegram_message(content, chat_id=None):
     bot_token = os.getenv("TOKEN_BOT")
     api_url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
 
@@ -248,7 +251,7 @@ def send_telegram_message(chat_id, content):
 
 class CreateTransaction(decorators.APIView):
     def post(self, request, *args, **kwargs):
-        serializer = TransactionSerializer(request.data) 
+        serializer = TransactionSerializer(request.data)
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
         send_stats_to_user()

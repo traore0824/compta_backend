@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+
 SOURCE_CHOICES = [
     ("web", "Web"),
     ("mobile", "Mobile"),
@@ -51,6 +52,7 @@ class APITransaction(models.Model):
     minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2)
     name = models.CharField(max_length=20, choices=API_CHOICES)
     can_send_alert = models.BooleanField(default=True)
+    balance = models.DecimalField(decimal_places=2, max_digits=10, default=0.0)
 
 
 class MobCashApp(models.Model):
@@ -59,6 +61,19 @@ class MobCashApp(models.Model):
     can_send_alert = models.BooleanField(default=True)
     deposit_fee = models.DecimalField(max_digits=15, decimal_places=2)
     retrait_fee = models.DecimalField(max_digits=15, decimal_places=2)
+    balance = models.DecimalField(decimal_places=2, max_digits=10, default=0.0)
+
+
+class APIBalanceUpdate(models.Model):
+    api_transaction = models.ForeignKey(APITransaction, on_delete=models.CASCADE, blank=True, null=True)
+    balance = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+
+class MobCashAppBalanceUpdate(models.Model):
+    mobcash_balance = models.ForeignKey(MobCashApp, on_delete=models.CASCADE, blank=True, null=True)
+    balance = models.DecimalField(max_digits=10, decimal_places=2)
+    created_at = models.DateTimeField(auto_now_add=True)
 
 
 class Notification(models.Model):
@@ -67,6 +82,7 @@ class Notification(models.Model):
     content = models.TextField()
     is_read = models.BooleanField(default=False)
     title = models.CharField(max_length=100, blank=True, null=True)
+    
 
     def total_unread_notification(self, user):
         return Notification.objects.filter(user=user, is_read=False).count()
@@ -77,6 +93,7 @@ class Notification(models.Model):
 
     def __str__(self):
         return str(self.id)
+
 
 class UserTransactionFilter(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -89,9 +106,9 @@ class UserTransactionFilter(models.Model):
     type = models.CharField(max_length=20, null=True, blank=True)
     mobcash = models.CharField(max_length=100, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
+
     def __str__(self):
         return f"Filter for {self.user.username}"
-
 
 
 # Create your models here.
