@@ -3,6 +3,7 @@ import requests
 from rest_framework import decorators, permissions, status, generics
 from django.utils.dateparse import parse_datetime, parse_date
 from compta.models import (
+    API_CHOICES,
     APIBalanceUpdate,
     APITransaction,
     MobCashApp,
@@ -218,7 +219,7 @@ def get_mobcash_stat(transactions):
 
 def get_api_stat(transactions):
     data = {}
-    for value, label in Transaction.API_CHOICES:
+    for value, label in API_CHOICES:
         txs = transactions.filter(api=value)
         data[value] = {
             "label": label,
