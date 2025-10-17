@@ -4,6 +4,9 @@ from rest_framework import decorators, permissions, status, generics
 from django.utils.dateparse import parse_datetime, parse_date
 from compta.models import (
     API_CHOICES,
+    NETWORK_CHOICES,
+    SOURCE_CHOICES,
+    TYPE_CHOICES,
     APIBalanceUpdate,
     APITransaction,
     MobCashApp,
@@ -232,7 +235,7 @@ def get_api_stat(transactions):
 
 def get_network_stat(transactions):
     data = {}
-    for value, label in Transaction.NETWORK_CHOICES:
+    for value, label in NETWORK_CHOICES:
         txs = transactions.filter(network=value)
         data[value] = {
             "label": label,
@@ -245,7 +248,7 @@ def get_network_stat(transactions):
 
 def get_source_stat(transactions):
     data = {}
-    for value, label in Transaction.SOURCE_CHOICES:
+    for value, label in SOURCE_CHOICES:
         txs = transactions.filter(source=value)
         data[value] = {
             "label": label,
@@ -258,7 +261,7 @@ def get_source_stat(transactions):
 
 def get_type_stat(transactions):
     data = {}
-    for value, label in Transaction.TYPE_CHOICES:
+    for value, label in TYPE_CHOICES:
         txs = transactions.filter(type=value)
         data[value] = {
             "label": label,
