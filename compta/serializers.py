@@ -65,3 +65,9 @@ class TransactionSerializer(serializers.ModelSerializer):
             )
 
         return transaction
+
+
+class MobCashAppSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MobCashApp
+        fields = "__all__"

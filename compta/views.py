@@ -1,6 +1,6 @@
 import os
 import requests
-from rest_framework import decorators, permissions, status
+from rest_framework import decorators, permissions, status, generics
 from django.utils.dateparse import parse_datetime, parse_date
 from compta.models import (
     APIBalanceUpdate,
@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from compta.serializers import TransactionSerializer
+from compta.serializers import MobCashAppSerializer, TransactionSerializer
 from django.contrib.auth.models import User
 from django.utils.formats import number_format
 
@@ -452,3 +452,16 @@ class ResetUserTransactionFilterView(decorators.APIView):
             user=request.user, defaults=defaults
         )
         return Response(status=status.HTTP_200_OK)
+
+
+
+class MobCashAppListView(generics.ListAPIView):
+    queryset = MobCashApp.objects.all()
+    serializer_class = MobCashAppSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+class MobCashAppUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = MobCashApp.objects.all()
+    serializer_class = MobCashAppSerializer
+    permission_classes = [permissions.IsAdminUser]
