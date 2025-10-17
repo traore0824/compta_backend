@@ -22,10 +22,12 @@ class TransactionSerializer(serializers.ModelSerializer):
         api_config, _ = APITransaction.objects.get_or_create(name=api_name)
 
         if transaction_type == "depot":
-            validated_data["mobcash_fee"] = (mobcash_config.deposit_fee * validated_data.get("amount"))/100
+            validated_data["mobcash_fee"] = (
+                mobcash_config.deposit_fee_percent * validated_data.get("amount")
+            ) / 100
         elif transaction_type == "retrait":
             validated_data["mobcash_fee"] = (
-                mobcash_config.retrait_fee * validated_data.get("amount")
+                mobcash_config.retrait_fee_percent * validated_data.get("amount")
             ) / 100
 
         transaction = Transaction.objects.create(**validated_data)
