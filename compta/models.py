@@ -46,7 +46,7 @@ class Transaction(models.Model):
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
     type = models.CharField(max_length=10, choices=TYPE_CHOICES)
     api = models.CharField(max_length=20, choices=API_CHOICES)
-    network = models.CharField(max_length=10, choices=NETWORK_CHOICES)
+    network = models.CharField(max_length=10, choices=NETWORK_CHOICES, blank=True, null=True)
     mobcash = models.CharField(max_length=100)
 
     def __str__(self):
@@ -62,10 +62,16 @@ class APITransaction(models.Model):
 
 class MobCashApp(models.Model):
     minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2, default=50000)
-    name = models.CharField(max_length=20)
+    name = models.CharField(max_length=20, unique=True)
     can_send_alert = models.BooleanField(default=True)
-    deposit_fee = models.DecimalField(max_digits=15, decimal_places=2, default=3)
-    retrait_fee = models.DecimalField(max_digits=15, decimal_places=2, default=2)
+    deposit_fee_percent = models.DecimalField(max_digits=15, decimal_places=2, default=3)
+    retrait_fee_percent = models.DecimalField(max_digits=15, decimal_places=2, default=2)
+    partner_deposit_fee_percent = models.DecimalField(
+        max_digits=15, decimal_places=2, default=3
+    )
+    partner_retrait_fee_percent = models.DecimalField(
+        max_digits=15, decimal_places=2, default=2
+    )
     balance = models.DecimalField(decimal_places=2, max_digits=10, default=0.0)
 
 
@@ -87,7 +93,6 @@ class Notification(models.Model):
     content = models.TextField()
     is_read = models.BooleanField(default=False)
     title = models.CharField(max_length=100, blank=True, null=True)
-    
 
     def total_unread_notification(self, user):
         return Notification.objects.filter(user=user, is_read=False).count()
@@ -105,13 +110,17 @@ class UserTransactionFilter(models.Model):
     last = models.CharField(max_length=20, null=True, blank=True)
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True)
-    source = models.CharField(max_length=20, null=True, blank=True)
-    network = models.CharField(max_length=20, null=True, blank=True)
-    api = models.CharField(max_length=20, null=True, blank=True)
-    type = models.CharField(max_length=20, null=True, blank=True)
+    source = models.CharField(
+        max_length=20, choices=SOURCE_CHOICES, null=True, blank=True
+    )
+    network = models.CharField(
+        max_length=20, choices=NETWORK_CHOICES, null=True, blank=True
+    )
+    api = models.CharField(max_length=20, choices=API_CHOICES, null=True, blank=True)
+    type = models.CharField(max_length=20, choices=TYPE_CHOICES, null=True, blank=True)
     mobcash = models.CharField(max_length=100, null=True, blank=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    
     def __str__(self):
         return f"Filter for {self.user.username}"
 

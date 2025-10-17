@@ -1,8 +1,15 @@
 import os
 import requests
-from rest_framework import decorators, permissions
+from rest_framework import decorators, permissions, status
 from django.utils.dateparse import parse_datetime, parse_date
-from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Transaction, UserTransactionFilter
+from compta.models import (
+    APIBalanceUpdate,
+    APITransaction,
+    MobCashApp,
+    MobCashAppBalanceUpdate,
+    Transaction,
+    UserTransactionFilter,
+)
 from django.utils import timezone
 from django.db.models import Sum
 from typing import List
@@ -283,7 +290,7 @@ def send_stats_to_user():
             start_date = None
             end_date = None
     else:
-        start_date = user_filter.start_date 
+        start_date = user_filter.start_date
         end_date = user_filter.end_date
 
     if start_date and isinstance(start_date, str):
@@ -315,7 +322,9 @@ def send_stats_to_user():
 
         balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
         if start_date and end_date:
-            updates_in_period = balance_updates.filter(created_at__gte=start_date, created_at__lte=end_date)
+            updates_in_period = balance_updates.filter(
+                created_at__gte=start_date, created_at__lte=end_date
+            )
         elif start_date and not end_date:
             updates_in_period = balance_updates.filter(created_at__gte=start_date)
         else:
@@ -325,7 +334,11 @@ def send_stats_to_user():
             last_update = updates_in_period.order_by("-created_at").first()
             balance = last_update.balance
         elif start_date:
-            last_update_before = balance_updates.filter(created_at__lt=start_date).order_by("-created_at").first()
+            last_update_before = (
+                balance_updates.filter(created_at__lt=start_date)
+                .order_by("-created_at")
+                .first()
+            )
             if last_update_before:
                 balance = last_update_before.balance
             else:
@@ -338,9 +351,13 @@ def send_stats_to_user():
     for mobcash_obj in MobCashApp.objects.all():
         name = mobcash_obj.name
 
-        balance_updates = MobCashAppBalanceUpdate.objects.filter(mobcash_balance=mobcash_obj)
+        balance_updates = MobCashAppBalanceUpdate.objects.filter(
+            mobcash_balance=mobcash_obj
+        )
         if start_date and end_date:
-            updates_in_period = balance_updates.filter(created_at__gte=start_date, created_at__lte=end_date)
+            updates_in_period = balance_updates.filter(
+                created_at__gte=start_date, created_at__lte=end_date
+            )
         elif start_date and not end_date:
             updates_in_period = balance_updates.filter(created_at__gte=start_date)
         else:
@@ -350,7 +367,11 @@ def send_stats_to_user():
             last_update = updates_in_period.order_by("-created_at").first()
             balance = last_update.balance
         elif start_date:
-            last_update_before = balance_updates.filter(created_at__lt=start_date).order_by("-created_at").first()
+            last_update_before = (
+                balance_updates.filter(created_at__lt=start_date)
+                .order_by("-created_at")
+                .first()
+            )
             if last_update_before:
                 balance = last_update_before.balance
             else:
@@ -369,7 +390,8 @@ def send_stats_to_user():
         "data": {
             "total": transactions.count(),
             "amount": transactions.aggregate(total=Sum("amount"))["total"] or 0,
-            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
+            or 0,
             "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"],
             "balances": {
                 "api_balances": api_balances,
@@ -377,7 +399,7 @@ def send_stats_to_user():
                 "total_api_balance": total_api_balance,
                 "total_mobcash_balance": total_mobcash_balance,
                 "total_balance": total_balance,
-            }
+            },
         },
     }
     channel_layer = get_channel_layer()
@@ -385,6 +407,7 @@ def send_stats_to_user():
         f"user_{User.objects.first().id}_channel",
         {"type": "stat_data", "message": stats},
     )
+
 
 def send_telegram_message(chat_id, content):
     bot_token = os.getenv("TOKEN_BOT")
@@ -409,3 +432,23 @@ class CreateTransaction(decorators.APIView):
         transaction = serializer.save()
         send_stats_to_user()
         return Response(TransactionSerializer(transaction).data)
+
+
+class ResetUserTransactionFilterView(decorators.APIView):
+    permission_classes = [permissions.IsAdminUser]
+
+    def post(self, request, *args, **kwargs):
+        defaults = {
+            "last": None,
+            "start_date": None,
+            "end_date": None,
+            "source": None,
+            "network": None,
+            "api": None,
+            "type": None,
+            "mobcash": None,
+        }
+        filter_obj, created = UserTransactionFilter.objects.update_or_create(
+            user=request.user, defaults=defaults
+        )
+        return Response(status=status.HTTP_200_OK)

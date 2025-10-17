@@ -57,7 +57,7 @@ def send_compta_summary(chat_id):
     # Message final
     message = (
         f"📊 *Résumé des dernières 12 heures*\n\n"
-        f"✅ Total des Dépôts : {depot_count}\n"
+        f"✅ Total des Dépôts : {depot_count}\n"+
         f"❌ Total des Retraits : {retrait_count}\n\n"
         f"💸 *Commission Genere*\n"
         f"• Sur dépôts : {deposit_fee_str}\n"
@@ -69,3 +69,7 @@ def send_compta_summary(chat_id):
     )
 
     return send_telegram_message(chat_id, message)
+
+
+def get_api_balance():
+    pass 
