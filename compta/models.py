@@ -15,7 +15,7 @@ TYPE_CHOICES = [
 ]
 
 API_CHOICES = [
-    ("dgs", "DGS"),
+    ("dgs_pay", "DGS"),
     ("pal", "PAL"),
     ("bpay", "BPay"),
     ("barkapay", "BarkaPay"),
