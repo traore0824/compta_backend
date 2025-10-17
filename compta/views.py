@@ -493,7 +493,7 @@ def get_api_balance():
         data = response.json()
         api_balances = APITransaction.objects.all()
         for api in api_balances:
-            api.balance = float(data.get("name"))
+            api.balance = float(data.get("name")) or 0
             api.save()
             api_update, created = APIBalanceUpdate.objects.get_or_create(
                 api_transaction=api
