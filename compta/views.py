@@ -17,7 +17,7 @@ from rest_framework.response import Response
 from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from compta.serializers import MobCashAppSerializer, TransactionSerializer
+from compta.serializers import APITransactionSerializer, MobCashAppSerializer, TransactionSerializer
 from django.contrib.auth.models import User
 from django.utils.formats import number_format
 
@@ -454,7 +454,6 @@ class ResetUserTransactionFilterView(decorators.APIView):
         return Response(status=status.HTTP_200_OK)
 
 
-
 class MobCashAppListView(generics.ListAPIView):
     queryset = MobCashApp.objects.all()
     serializer_class = MobCashAppSerializer
@@ -464,4 +463,16 @@ class MobCashAppListView(generics.ListAPIView):
 class MobCashAppUpdateView(generics.RetrieveUpdateAPIView):
     queryset = MobCashApp.objects.all()
     serializer_class = MobCashAppSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+class APITransactionListView(generics.ListAPIView):
+    queryset = APITransaction.objects.all()
+    serializer_class = APITransactionSerializer
+    permission_classes = [permissions.IsAdminUser]
+
+
+class APITransactionUpdateView(generics.RetrieveUpdateAPIView):
+    queryset = APITransaction.objects.all()
+    serializer_class = APITransactionSerializer
     permission_classes = [permissions.IsAdminUser]
