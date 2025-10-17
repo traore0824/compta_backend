@@ -73,6 +73,7 @@ class MobCashApp(models.Model):
         max_digits=15, decimal_places=2, default=2
     )
     balance = models.DecimalField(decimal_places=2, max_digits=10, default=0.0)
+    image = models.URLField(blank=True, null=True)
 
 
 class APIBalanceUpdate(models.Model):
