@@ -6,6 +6,7 @@ SOURCE_CHOICES = [
     ("mobile", "Mobile"),
     ("telegram", "Telegram"),
     ("partner", "Partner"),
+    ("other", "Other")
 ]
 TYPE_CHOICES = [
     ("depot", "Dépôt"),
@@ -32,10 +33,14 @@ NETWORK_CHOICES = [
 class Transaction(models.Model):
     reference = models.CharField(max_length=100)
     created_at = models.DateTimeField(auto_now_add=True)
-    mobcash_fee = models.DecimalField(max_digits=10, decimal_places=2)
-    blaffa_fee = models.DecimalField(max_digits=10, decimal_places=2)
-    mobcash_balance = models.DecimalField(max_digits=15, decimal_places=2)
-    api_balance = models.DecimalField(max_digits=15, decimal_places=2)
+    mobcash_fee = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    blaffa_fee = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
+    mobcash_balance = models.DecimalField(
+        max_digits=15, decimal_places=2, blank=True, null=True
+    )
+    api_balance = models.DecimalField(
+        max_digits=15, decimal_places=2, blank=True, null=True
+    )
     amount = models.DecimalField(max_digits=15, decimal_places=2)
     user_mobcash_id = models.CharField(max_length=100)
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES)
