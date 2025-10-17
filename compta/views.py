@@ -404,7 +404,7 @@ def send_telegram_message(chat_id, content):
 
 class CreateTransaction(decorators.APIView):
     def post(self, request, *args, **kwargs):
-        serializer = TransactionSerializer(request.data)
+        serializer = TransactionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
         send_stats_to_user()
