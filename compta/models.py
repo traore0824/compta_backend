@@ -54,14 +54,14 @@ class Transaction(models.Model):
 
 
 class APITransaction(models.Model):
-    minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2, default=50000)
     name = models.CharField(max_length=20, choices=API_CHOICES)
     can_send_alert = models.BooleanField(default=True)
     balance = models.DecimalField(decimal_places=2, max_digits=10, default=0.0)
 
 
 class MobCashApp(models.Model):
-    minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2)
+    minimun_balance_amount = models.DecimalField(max_digits=15, decimal_places=2, default=50000)
     name = models.CharField(max_length=20)
     can_send_alert = models.BooleanField(default=True)
     deposit_fee = models.DecimalField(max_digits=15, decimal_places=2)
