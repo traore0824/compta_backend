@@ -566,3 +566,9 @@ class APIBalanceView(decorators.APIView):
     permission_classes = [permissions.IsAdminUser]
     def get(self, request, *args, **kwargs):
         return Response(get_api_balance())
+
+
+class MobCashBalance(decorators.APIView):
+    permission_classes = [permissions.IsAdminUser]
+    def get(self, request, *args, **kwargs):
+        return Response(get_mobcash_balance())
