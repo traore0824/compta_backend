@@ -257,12 +257,11 @@ def get_type_stat(transactions):
     return data
 
 
-
 def send_stats_to_user():
     user_filter = UserTransactionFilter.objects.first()
     transactions = Transaction.objects.all().order_by("-created_at")
 
-    if user_filter.last:
+    if user_filter and user_filter.last:
         now = timezone.now()
         if user_filter.last == "yesterday":
             start_date = now - timedelta(days=1)
@@ -409,4 +408,3 @@ class CreateTransaction(decorators.APIView):
         transaction = serializer.save()
         send_stats_to_user()
         return Response(TransactionSerializer(transaction).data)
-
