@@ -17,7 +17,11 @@ from rest_framework.response import Response
 from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from compta.serializers import APITransactionSerializer, MobCashAppSerializer, TransactionSerializer
+from compta.serializers import (
+    APITransactionSerializer,
+    MobCashAppSerializer,
+    TransactionSerializer,
+)
 from django.contrib.auth.models import User
 from django.utils.formats import number_format
 
@@ -476,3 +480,33 @@ class APITransactionUpdateView(generics.RetrieveUpdateAPIView):
     queryset = APITransaction.objects.all()
     serializer_class = APITransactionSerializer
     permission_classes = [permissions.IsAdminUser]
+
+
+def get_api_balance():
+    url = "https://api.blaffa.net/blaffa/balance"
+    headers = {
+        "Content-Type": "application/json",
+    }
+    try:
+        response = requests.get(url=url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        api_balances = APITransaction.objects.all()
+        for api in api_balances:
+            api.balance = float(data.get("name"))
+            api.save()
+            api_update, created = APIBalanceUpdate.objects.get_or_create(
+                api_transaction=api
+            )
+            api_update.balance = api.balance
+            api_update.save()
+        return data
+    except Exception as e:
+        return {"error" : str(e)}
+
+
+class APIBalanceView(decorators.APIView):
+    permission_classes = [permissions.IsAdminUser]
+    def get(self, request, *args, **kwargs):
+
+        return Response(get_api_balance())

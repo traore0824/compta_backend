@@ -20,4 +20,5 @@ urlpatterns = [
         views.APITransactionUpdateView.as_view(),
         name="api-transaction-update",
     ),
+    path("api-balance", views.APIBalanceView.as_view()),
 ]
