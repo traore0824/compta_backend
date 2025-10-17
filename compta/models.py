@@ -84,7 +84,7 @@ class APIBalanceUpdate(models.Model):
 
 class MobCashAppBalanceUpdate(models.Model):
     mobcash_balance = models.ForeignKey(MobCashApp, on_delete=models.CASCADE, blank=True, null=True)
-    balance = models.DecimalField(max_digits=10, decimal_places=2)
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 
 

@@ -6,8 +6,12 @@ import requests
 from django.db.models import Sum
 from django.utils.formats import number_format
 from compta.view_2 import send_telegram_message
+from celery import shared_task
+
+from compta.views import get_api_balance
 
 
+@shared_task
 def send_compta_summary(chat_id):
     now = timezone.now()
     twelve_hours_ago = now - timedelta(hours=12)
@@ -71,5 +75,6 @@ def send_compta_summary(chat_id):
     return send_telegram_message(chat_id, message)
 
 
-def get_api_balance():
-    pass 
+@shared_task
+def update_balance_api():
+    get_api_balance()

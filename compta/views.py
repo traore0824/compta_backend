@@ -521,8 +521,48 @@ def get_api_balance():
         return {"error": str(e)}
 
 
+def get_mobcash_balance():
+    url = "https://api.blaffa.net/blaffa/mobcash-balance"
+    headers = {
+        "Content-Type": "application/json",
+    }
+
+    try:
+        response = requests.get(url=url, headers=headers)
+        response.raise_for_status()
+        balances = response.json()  
+        balance_dict = {
+            item["app_name"].lower(): item["solde"]
+            for item in balances
+            if "app_name" in item and "solde" in item
+        }
+
+        for mobcash in MobCashApp.objects.all():
+            app_name = mobcash.name.lower()
+
+            if app_name in balance_dict:
+                balance_value = balance_dict[app_name]
+
+                try:
+                    balance = float(balance_value)
+                    mobcash.balance = balance
+                    mobcash.save()
+
+                    MobCashAppBalanceUpdate.objects.create(
+                        mobcash_balance=mobcash, balance=balance
+                    )
+
+                except (ValueError, TypeError):
+                    # Balance invalide ou non convertible
+                    continue
+
+        return balance_dict
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
 class APIBalanceView(decorators.APIView):
     permission_classes = [permissions.IsAdminUser]
     def get(self, request, *args, **kwargs):
-
         return Response(get_api_balance())
