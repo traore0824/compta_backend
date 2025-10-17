@@ -260,7 +260,8 @@ def get_type_stat(transactions):
 def send_stats_to_user():
     user_filter = UserTransactionFilter.objects.first()
     transactions = Transaction.objects.all().order_by("-created_at")
-
+    if not user_filter:
+        return
     if user_filter and user_filter.last:
         now = timezone.now()
         if user_filter.last == "yesterday":
@@ -282,7 +283,7 @@ def send_stats_to_user():
             start_date = None
             end_date = None
     else:
-        start_date = user_filter.start_date
+        start_date = user_filter.start_date 
         end_date = user_filter.end_date
 
     if start_date and isinstance(start_date, str):
