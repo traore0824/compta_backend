@@ -22,4 +22,9 @@ urlpatterns = [
     ),
     path("api-balance", views.APIBalanceView.as_view()),
     path("mobcash-balance", views.MobCashBalance.as_view()),
+    path(
+        "user-filter/",
+        views.UserTransactionFilterView.as_view(),
+        name="user-transaction-filter",
+    ),
 ]

@@ -3,7 +3,7 @@ from rest_framework import serializers
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Notification, Transaction
+from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Notification, Transaction, UserTransactionFilter
 from compta.utils import send_mails, valider_password
 from compta.view_2 import send_telegram_message
 
@@ -89,3 +89,10 @@ class MobCashAppBalanceUpdateSerializer(serializers.ModelSerializer):
     class Meta:
         model = MobCashAppBalanceUpdate
         fields = ["id", "mobcash_balance", "balance", "created_at"]
+
+
+class UserTransactionFilterSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = UserTransactionFilter
+        fields = "__all__"
+        read_only_fields = ["user", "updated_at"]

@@ -25,6 +25,7 @@ from compta.serializers import (
     APITransactionSerializer,
     MobCashAppSerializer,
     TransactionSerializer,
+    UserTransactionFilterSerializer,
 )
 from django.contrib.auth.models import User
 from django.utils.formats import number_format
@@ -440,6 +441,16 @@ class CreateTransaction(decorators.APIView):
         transaction = serializer.save()
         send_stats_to_user()
         return Response(TransactionSerializer(transaction).data)
+
+
+class UserTransactionFilterView(decorators.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        user = request.user
+        filter_obj, created = UserTransactionFilter.objects.get_or_create(user=user)
+        serializer = UserTransactionFilterSerializer(filter_obj)
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ResetUserTransactionFilterView(decorators.APIView):
