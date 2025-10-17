@@ -21,4 +21,5 @@ urlpatterns = [
         name="api-transaction-update",
     ),
     path("api-balance", views.APIBalanceView.as_view()),
+    path("mobcash-balance", views.MobCashBalance.as_view()),
 ]
