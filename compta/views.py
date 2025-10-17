@@ -487,22 +487,38 @@ def get_api_balance():
     headers = {
         "Content-Type": "application/json",
     }
+
     try:
         response = requests.get(url=url, headers=headers)
         response.raise_for_status()
         data = response.json()
-        api_balances = APITransaction.objects.all()
-        for api in api_balances:
-            api.balance = float(data.get("name", "0")) 
-            api.save()
-            api_update, created = APIBalanceUpdate.objects.get_or_create(
-                api_transaction=api
-            )
-            api_update.balance = api.balance
-            api_update.save()
+
+        for api in APITransaction.objects.all():
+            api_name = api.name.lower()
+
+            if api_name in data:
+                balance_data = data[api_name]
+
+                # Ignorer les valeurs invalides ou en erreur
+                if isinstance(balance_data, (int, float, str)):
+                    try:
+                        balance = float(balance_data)
+                        api.balance = balance
+                        api.save()
+
+                        # Créer un enregistrement historique
+                        APIBalanceUpdate.objects.create(
+                            api_transaction=api, balance=balance
+                        )
+
+                    except ValueError:
+                        # Si balance_data n’est pas convertible en float
+                        continue
+
         return data
+
     except Exception as e:
-        return {"error" : str(e)}
+        return {"error": str(e)}
 
 
 class APIBalanceView(decorators.APIView):
