@@ -27,4 +27,5 @@ urlpatterns = [
         views.UserTransactionFilterView.as_view(),
         name="user-transaction-filter",
     ),
+    path("reset-filter", views.ResetUserTransactionFilterView.as_view()),
 ]
