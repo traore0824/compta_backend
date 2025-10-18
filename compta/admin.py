@@ -5,6 +5,7 @@ from .models import (
     APIBalanceUpdate,
     MobCashAppBalanceUpdate,
     Transaction,
+    UserTransactionFilter,
 )
 
 
@@ -77,3 +78,19 @@ class TransactionAdmin(admin.ModelAdmin):
     search_fields = ("reference", "user_mobcash_id", "mobcash")
     ordering = ("-created_at",)
     readonly_fields = ("created_at",)
+
+
+@admin.register(UserTransactionFilter)
+class UserTransactionFilterAdmin(admin.ModelAdmin):
+    list_display = (
+        "user",
+        "last",
+        "start_date",
+        "end_date",
+        "display_source",
+        "display_network",
+        "display_api",
+        "display_type",
+        "display_mobcash",
+        "updated_at",
+    )
