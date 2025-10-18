@@ -222,6 +222,25 @@ def get_mobcash_stat(transactions):
             "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
             "image": mobcash.image,
             "balance": mobcash.balance,
+            "id": mobcash.id,
+            "name": mobcash.name.upper(),
+            "total_commission_amount": txs.aggregate(total=Sum("mobcash_fee"))["total"]
+            or 0,
+            "total_operations_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
+            "withdrawal_commission": txs.filter(type="retrait").aggregate(
+                total=Sum("mobcash_fee")
+            )["total"],
+            "deposit_commission": txs.filter(type="depot").aggregate(
+                total=Sum("mobcash_fee")
+            )["total"],
+            "total_withdrawal_amount": txs.filter(type="retrait").aggregate(
+                total=Sum("amount")
+            )["total"],
+            "total_deposit_amount": txs.filter(type="depot").aggregate(
+                total=Sum("amount")
+            )["total"],
+            "total_withdrawals": txs.filter(type="retrait").count(),
+            "total_deposit": txs.filter(type="depot").count(),
         }
     sorted_data = OrderedDict(
         sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
