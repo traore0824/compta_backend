@@ -89,72 +89,72 @@ class ComptatView(decorators.APIView):
 
         # --- Calcul des soldes ---
 
-        # api_balances = {}
-        # for api_obj in APITransaction.objects.all():
-        #     name = api_obj.name
-        #     balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
+        api_balances = {}
+        for api_obj in APITransaction.objects.all():
+            name = api_obj.name
+            balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
 
-        #     if start_date and end_date:
-        #         updates_in_period = balance_updates.filter(
-        #             created_at__gte=start_date, created_at__lte=end_date
-        #         )
-        #     elif start_date and not end_date:
-        #         updates_in_period = balance_updates.filter(created_at__gte=start_date)
-        #     else:
-        #         updates_in_period = balance_updates.none()
+            if start_date and end_date:
+                updates_in_period = balance_updates.filter(
+                    created_at__gte=start_date, created_at__lte=end_date
+                )
+            elif start_date and not end_date:
+                updates_in_period = balance_updates.filter(created_at__gte=start_date)
+            else:
+                updates_in_period = balance_updates.none()
 
-        #     if updates_in_period.exists():
-        #         last_update = updates_in_period.order_by("-created_at").first()
-        #         balance = last_update.balance
-        #     elif start_date:
-        #         last_update_before = (
-        #             balance_updates.filter(created_at__lt=start_date)
-        #             .order_by("-created_at")
-        #             .first()
-        #         )
-        #         if last_update_before:
-        #             balance = last_update_before.balance
-        #         else:
-        #             balance = api_obj.balance
-        #     else:
-        #         balance = api_obj.balance
-        #     api_balances[name] = balance
+            if updates_in_period.exists():
+                last_update = updates_in_period.order_by("-created_at").first()
+                balance = last_update.balance
+            elif start_date:
+                last_update_before = (
+                    balance_updates.filter(created_at__lt=start_date)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if last_update_before:
+                    balance = last_update_before.balance
+                else:
+                    balance = api_obj.balance
+            else:
+                balance = api_obj.balance
+            api_balances[name] = balance
 
-        # mobcash_balances = {}
-        # for mobcash_obj in MobCashApp.objects.all():
-        #     name = mobcash_obj.name
-        #     balance_updates = MobCashAppBalanceUpdate.objects.filter(
-        #         mobcash_balance=mobcash_obj
-        #     )
+        mobcash_balances = {}
+        for mobcash_obj in MobCashApp.objects.all():
+            name = mobcash_obj.name
+            balance_updates = MobCashAppBalanceUpdate.objects.filter(
+                mobcash_balance=mobcash_obj
+            )
 
-        #     if start_date and end_date:
-        #         updates_in_period = balance_updates.filter(
-        #             created_at__gte=start_date, created_at__lte=end_date
-        #         )
-        #     elif start_date and not end_date:
-        #         updates_in_period = balance_updates.filter(created_at__gte=start_date)
-        #     else:
-        #         updates_in_period = balance_updates.none()
+            if start_date and end_date:
+                updates_in_period = balance_updates.filter(
+                    created_at__gte=start_date, created_at__lte=end_date
+                )
+            elif start_date and not end_date:
+                updates_in_period = balance_updates.filter(created_at__gte=start_date)
+            else:
+                updates_in_period = balance_updates.none()
 
-        #     if updates_in_period.exists():
-        #         last_update = updates_in_period.order_by("-created_at").first()
-        #         balance = last_update.balance
-        #     elif start_date:
-        #         last_update_before = (
-        #             balance_updates.filter(created_at__lt=start_date)
-        #             .order_by("-created_at")
-        #             .first()
-        #         )
-        #         if last_update_before:
-        #             balance = last_update_before.balance
-        #         else:
-        #             balance = mobcash_obj.balance
-        #     else:
-        #         balance = mobcash_obj.balance
-        #     mobcash_balances[name] = balance
+            if updates_in_period.exists():
+                last_update = updates_in_period.order_by("-created_at").first()
+                balance = last_update.balance
+            elif start_date:
+                last_update_before = (
+                    balance_updates.filter(created_at__lt=start_date)
+                    .order_by("-created_at")
+                    .first()
+                )
+                if last_update_before:
+                    balance = last_update_before.balance
+                else:
+                    balance = mobcash_obj.balance
+            else:
+                balance = mobcash_obj.balance
+            mobcash_balances[name] = balance
 
-        # total_api_balance = sum(api_balances.values())
-        # total_mobcash_balance = sum(mobcash_balances.values())
+        total_api_balance = sum(api_balances.values())
+        total_mobcash_balance = sum(mobcash_balances.values())
         total_api_balance = (
             APITransaction.objects.all().aggregate(total=Sum("balance"))["total"] or 0
         )
