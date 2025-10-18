@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "fcm_django",
     "accounts",
     "compta",
+    "django_celery_beat",
 ]
 
 MIDDLEWARE = [
@@ -184,6 +185,7 @@ CELERY_ACCEPT_CONTENT = ["json"]
 CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
+CELERY_TASK_DEFAULT_QUEUE = 'compta_queue'
 
 CELERY_TASK_SOFT_TIME_LIMIT = 220
 CELERY_TASK_TIME_LIMIT = 600
