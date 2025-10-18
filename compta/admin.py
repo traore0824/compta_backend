@@ -7,6 +7,7 @@ from .models import (
     Transaction,
     UserTransactionFilter,
 )
+from django.utils.html import format_html
 
 
 @admin.register(MobCashApp)
@@ -94,3 +95,34 @@ class UserTransactionFilterAdmin(admin.ModelAdmin):
         "display_mobcash",
         "updated_at",
     )
+    readonly_fields = ("updated_at",)
+
+    def _format_json_list(self, value):
+        if not value:
+            return "-"
+        return format_html(", ".join(str(v) for v in value))
+
+    def display_source(self, obj):
+        return self._format_json_list(obj.source)
+
+    display_source.short_description = "Source"
+
+    def display_network(self, obj):
+        return self._format_json_list(obj.network)
+
+    display_network.short_description = "Network"
+
+    def display_api(self, obj):
+        return self._format_json_list(obj.api)
+
+    display_api.short_description = "API"
+
+    def display_type(self, obj):
+        return self._format_json_list(obj.type)
+
+    display_type.short_description = "Type"
+
+    def display_mobcash(self, obj):
+        return self._format_json_list(obj.mobcash)
+
+    display_mobcash.short_description = "MobCash"
