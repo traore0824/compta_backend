@@ -208,6 +208,8 @@ class ComptatView(decorators.APIView):
         )
         return Response(data)
 
+from collections import OrderedDict
+
 
 def get_mobcash_stat(transactions):
     mobcash_apps = MobCashApp.objects.all()
@@ -222,11 +224,11 @@ def get_mobcash_stat(transactions):
             "image": mobcash.image,
             "balance": mobcash.balance,
         }
-
-    sorted_data = sorted(
-        data.items(), key=lambda item: item[1]["balance"], reverse=True
+    sorted_data = OrderedDict(
+        sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
     )
-    return sorted_data 
+
+    return sorted_data  
 
 
 def get_api_stat(transactions):
