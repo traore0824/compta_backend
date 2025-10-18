@@ -12,7 +12,7 @@ from compta.views import get_api_balance, get_mobcash_balance
 
 
 @shared_task
-def send_compta_summary(chat_id):
+def send_compta_summary():
     now = timezone.now()
     twelve_hours_ago = now - timedelta(hours=12)
 
@@ -72,7 +72,7 @@ def send_compta_summary(chat_id):
         f"🔢 Solde total : {total_balance_str}\n\n"
     )
 
-    return send_telegram_message(chat_id, message)
+    return send_telegram_message("", message)
 
 
 @shared_task
