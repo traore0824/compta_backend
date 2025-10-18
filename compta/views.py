@@ -232,15 +232,17 @@ def get_mobcash_stat(transactions):
 
 
 def get_api_stat(transactions):
+    api_transactions = APITransaction.objects.all()
     data = {}
-    for value, label in API_CHOICES:
-        txs = transactions.filter(api=value)
-        data[value] = {
-            "label": label,
+    for api_transaction in api_transactions:
+        api = api_transaction.name.lower()
+        txs = transactions.filter(api=api)
+        data[api] = {
+            "label": api,
             "total": txs.count(),
             "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
             "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-            
+            "balance": api_transaction.balance
         }
     return data
 
