@@ -2,6 +2,7 @@ import os
 import requests
 from rest_framework import decorators, permissions, status, generics
 from django.utils.dateparse import parse_datetime, parse_date
+from collections import OrderedDict
 from compta.models import (
     API_CHOICES,
     NETWORK_CHOICES,
@@ -208,8 +209,6 @@ class ComptatView(decorators.APIView):
         )
         return Response(data)
 
-from collections import OrderedDict
-
 
 def get_mobcash_stat(transactions):
     mobcash_apps = MobCashApp.objects.all()
@@ -230,21 +229,35 @@ def get_mobcash_stat(transactions):
 
     return sorted_data  
 
-
 def get_api_stat(transactions):
     api_transactions = APITransaction.objects.all()
     data = {}
+
+    total_transactions = transactions.count()
+
     for api_transaction in api_transactions:
         api = api_transaction.name.lower()
         txs = transactions.filter(api=api)
+        total = txs.count()
+        total_amount = txs.aggregate(total=Sum("amount"))["total"] or 0
+        fee = txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0
+
+        percent = (total / total_transactions * 100) if total_transactions > 0 else 0
+
         data[api] = {
             "label": api,
-            "total": txs.count(),
-            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
-            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-            "balance": api_transaction.balance
+            "total": total,
+            "total_amount": total_amount,
+            "fee": fee,
+            "balance": api_transaction.balance,
+            "percent": round(percent, 2),
         }
-    return data
+
+    sorted_data = OrderedDict(
+        sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
+    )
+
+    return sorted_data
 
 
 def get_network_stat(transactions):
