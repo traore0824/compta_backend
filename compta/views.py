@@ -241,7 +241,9 @@ def get_api_stat(transactions):
         total = txs.count()
         total_amount = txs.aggregate(total=Sum("amount"))["total"] or 0
         fee = txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0
+
         percent = (total / total_transactions * 100) if total_transactions > 0 else 0
+
         data[api] = {
             "label": api,
             "total": total,
@@ -252,7 +254,7 @@ def get_api_stat(transactions):
         }
 
     sorted_data = OrderedDict(
-        sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
+        sorted(data.items(), key=lambda item: item[1]["percent"], reverse=True)
     )
 
     return sorted_data
