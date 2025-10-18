@@ -219,9 +219,14 @@ def get_mobcash_stat(transactions):
             "total": txs.count(),
             "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
             "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-            "image": mobcash.image
+            "image": mobcash.image,
+            "balance": mobcash.balance,
         }
-    return data
+
+    sorted_data = sorted(
+        data.items(), key=lambda item: item[1]["balance"], reverse=True
+    )
+    return sorted_data 
 
 
 def get_api_stat(transactions):
@@ -233,6 +238,7 @@ def get_api_stat(transactions):
             "total": txs.count(),
             "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
             "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
+            
         }
     return data
 
