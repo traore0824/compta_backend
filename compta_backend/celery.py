@@ -14,7 +14,7 @@ from datetime import timedelta
 app.conf.beat_schedule = {
     "update_balance_api": {
         "task": "compta.tasks.update_balance_api",
-        "schedule": timedelta(minutes=5),
+        "schedule": timedelta(seconds=30),
     },
     "send_compta_summary": {
         "task": "compta.tasks.send_compta_summary",
