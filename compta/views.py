@@ -155,12 +155,12 @@ class ComptatView(decorators.APIView):
 
         total_api_balance = sum(api_balances.values())
         total_mobcash_balance = sum(mobcash_balances.values())
-        total_api_balance = (
-            APITransaction.objects.all().aggregate(total=Sum("balance"))["total"] or 0
-        )
-        total_mobcash_balance = MobCashApp.objects.all().aggregate(
-            total=Sum("balance")
-        )["total"]  or 0
+        # total_api_balance = (
+        #     APITransaction.objects.all().aggregate(total=Sum("balance"))["total"] or 0
+        # )
+        # total_mobcash_balance = MobCashApp.objects.all().aggregate(
+        #     total=Sum("balance")
+        # )["total"]  or 0
         total_balance = total_api_balance + total_mobcash_balance
 
         data = {
