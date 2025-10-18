@@ -40,11 +40,12 @@ class ComptatView(decorators.APIView):
         end_date = request.GET.get("end_date")
         last = request.GET.get("last")
 
-        source = request.GET.get("source")
-        network = request.GET.get("network")
-        api = request.GET.get("api")
-        type = request.GET.get("type")
-        mobcash = request.GET.get("mobcash")
+        # Récupération des filtres en listes
+        source_list = request.GET.getlist("source")
+        network_list = request.GET.getlist("network")
+        api_list = request.GET.getlist("api")
+        type_list = request.GET.getlist("type")
+        mobcash_list = request.GET.getlist("mobcash")
 
         now = timezone.now()
         if last:
@@ -64,7 +65,7 @@ class ComptatView(decorators.APIView):
                 end_date = None
         else:
             if not start_date:
-                start_date = None  # Pas la date actuelle par défaut, mais None
+                start_date = None  # Par défaut pas de date actuelle
 
         if start_date and isinstance(start_date, str):
             start_date = parse_datetime(start_date)
@@ -75,26 +76,24 @@ class ComptatView(decorators.APIView):
             transactions = transactions.filter(created_at__gte=start_date)
         if end_date:
             transactions = transactions.filter(created_at__lte=end_date)
-        if source:
-            transactions = transactions.filter(source=source)
-        if network:
-            transactions = transactions.filter(network=network)
-        if api:
-            transactions = transactions.filter(api=api)
-        if mobcash:
-            transactions = transactions.filter(mobcash=mobcash)
-        if type:
-            transactions = transactions.filter(type=type)
+        if source_list:
+            transactions = transactions.filter(source__in=source_list)
+        if network_list:
+            transactions = transactions.filter(network__in=network_list)
+        if api_list:
+            transactions = transactions.filter(api__in=api_list)
+        if mobcash_list:
+            transactions = transactions.filter(mobcash__in=mobcash_list)
+        if type_list:
+            transactions = transactions.filter(type__in=type_list)
 
-        # --- Calcul des soldes en respectant ta logique ---
+        # --- Calcul des soldes ---
 
-        # API Transactions balances
         api_balances = {}
         for api_obj in APITransaction.objects.all():
             name = api_obj.name
-
-            # Filtres sur APIBalanceUpdate
             balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
+
             if start_date and end_date:
                 updates_in_period = balance_updates.filter(
                     created_at__gte=start_date, created_at__lte=end_date
@@ -108,7 +107,6 @@ class ComptatView(decorators.APIView):
                 last_update = updates_in_period.order_by("-created_at").first()
                 balance = last_update.balance
             elif start_date:
-                # Pas de maj dans la période, cherche la dernière avant start_date
                 last_update_before = (
                     balance_updates.filter(created_at__lt=start_date)
                     .order_by("-created_at")
@@ -117,20 +115,18 @@ class ComptatView(decorators.APIView):
                 if last_update_before:
                     balance = last_update_before.balance
                 else:
-                    balance = api_obj.balance  # fallback au solde de base
+                    balance = api_obj.balance
             else:
-                # Pas de période, prend solde courant
                 balance = api_obj.balance
             api_balances[name] = balance
 
-        # MobCashApp balances
         mobcash_balances = {}
         for mobcash_obj in MobCashApp.objects.all():
             name = mobcash_obj.name
-
             balance_updates = MobCashAppBalanceUpdate.objects.filter(
                 mobcash_balance=mobcash_obj
             )
+
             if start_date and end_date:
                 updates_in_period = balance_updates.filter(
                     created_at__gte=start_date, created_at__lte=end_date
@@ -166,11 +162,11 @@ class ComptatView(decorators.APIView):
                 "start_date": start_date,
                 "end_date": end_date,
                 "last": last,
-                "source": source,
-                "network": network,
-                "api": api,
-                "mobcash": mobcash,
-                "type": type,
+                "source": source_list,
+                "network": network_list,
+                "api": api_list,
+                "mobcash": mobcash_list,
+                "type": type_list,
             },
             "total": transactions.count(),
             "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
@@ -197,11 +193,11 @@ class ComptatView(decorators.APIView):
                 "last": last,
                 "start_date": start_date,
                 "end_date": end_date,
-                "source": source,
-                "network": network,
-                "api": api,
-                "type": type,
-                "mobcash": mobcash,
+                "source": source_list,
+                "network": network_list,
+                "api": api_list,
+                "type": type_list,
+                "mobcash": mobcash_list,
             },
         )
         return Response(data)
