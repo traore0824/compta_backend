@@ -466,7 +466,7 @@ class ResetUserTransactionFilterView(decorators.APIView):
         filter_obj, created = UserTransactionFilter.objects.update_or_create(
             user=request.user, defaults=defaults
         )
-        return Response(status=status.HTTP_200_OK)
+        return Response(UserTransactionFilterSerializer(filter_obj).data, status=status.HTTP_200_OK)
 
 
 class MobCashAppListView(generics.ListAPIView):
