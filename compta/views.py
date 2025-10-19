@@ -147,7 +147,7 @@ def send_stats_to_user():
         # Envoyer via WebSocket
         response= {}
         message="1111111111111111111"
-        response = pusher_client.trigger(
+        pusher_client.trigger(
             f"private-channel_1",
             "stat_data",
             data,
@@ -157,6 +157,7 @@ def send_stats_to_user():
     except Exception as e:
         # Log l'erreur (à adapter selon ton système de logging)
         print(f"Erreur send_stats_to_user: {e}")
+        return str(e)
 
 
 def send_telegram_message(chat_id, content):
