@@ -29,26 +29,26 @@ class ComptatView(decorators.APIView):
     def get(self, request, *args, **kwargs):
         # 1. Parser les filtres
         filters = FilterService.parse_filters_from_request(request)
-        
+
         # 2. Récupérer et filtrer les transactions
         transactions = TransactionService.get_all_transactions()
         transactions = FilterService.apply_filters(transactions, filters)
-        
+
         # 3. Calculer les agrégats
         aggregates = TransactionService.get_transaction_aggregates(transactions)
-        
+
         # 4. Calculer les balances
         balances = BalanceService.get_all_balances(
             filters.get('start_date'),
             filters.get('end_date')
         )
-        
+
         # 5. Calculer les stats
         stats = StatsService.get_all_stats(transactions)
-        
+
         # 6. Sauvegarder le filtre
         FilterService.save_user_filter(request.user, filters)
-        
+
         # 7. Construire la réponse (FORMAT EXACT comme avant)
         data = {
             "filters": {
@@ -72,7 +72,7 @@ class ComptatView(decorators.APIView):
             "type_stats": stats['type_stats'],
             "balances": balances,
         }
-        
+
         return Response(data)
 
 
@@ -103,27 +103,47 @@ def send_stats_to_user():
         transactions = TransactionService.get_all_transactions()
         transactions = FilterService.apply_filters(transactions, filters)
 
-        # Calculer les agrégats et balances
+        # Calculer les agrégats, balances et stats
         aggregates = TransactionService.get_transaction_aggregates(transactions)
         balances = BalanceService.get_all_balances(
             filters.get("start_date"), filters.get("end_date")
         )
+        stats = StatsService.get_all_stats(transactions)
 
-        # Construire le message stats
-        stats = {
+        # Construire le message stats avec le format complet
+        data = {
             "type": "stats_update",
             "context": "user_filter",
             "data": {
-                **aggregates,
+                "filters": {
+                    "start_date": filters.get("start_date"),
+                    "end_date": filters.get("end_date"),
+                    "last": filters.get("last"),
+                    "source": filters.get("source", []),
+                    "network": filters.get("network", []),
+                    "api": filters.get("api", []),
+                    "mobcash": filters.get("mobcash", []),
+                    "type": filters.get("type", []),
+                },
+                "total": aggregates.get("total"),
+                "mobcash_fee": aggregates.get("mobcash_fee"),
+                "blaffa_fee": aggregates.get("blaffa_fee"),
+                "amount": aggregates.get("amount"),
+                "mobcash_stats": stats.get("mobcash_stats"),
+                "api_stats": stats.get("api_stats"),
+                "network_stats": stats.get("network_stats"),
+                "source_stats": stats.get("source_stats"),
+                "type_stats": stats.get("type_stats"),
                 "balances": balances,
             },
         }
 
         # Envoyer via WebSocket
+        
         channel_layer = get_channel_layer()
         async_to_sync(channel_layer.group_send)(
-            f"user_{user.id}_channel",
-            {"type": "stat_data", "message": stats},
+            f"private_channel_{user.id}",
+            {"type": "stat_data", "data": data},
         )
     except Exception as e:
         # Log l'erreur (à adapter selon ton système de logging)
@@ -173,11 +193,11 @@ class ResetUserTransactionFilterView(decorators.APIView):
             "last": None,
             "start_date": None,
             "end_date": None,
-            "source": None,
-            "network": None,
-            "api": None,
-            "type": None,
-            "mobcash": None,
+            "source": [],
+            "network": [],
+            "api": [],
+            "type": [],
+            "mobcash": [],
         }
         filter_obj, created = UserTransactionFilter.objects.update_or_create(
             user=request.user, defaults=defaults
@@ -299,3 +319,8 @@ class MobCashBalance(decorators.APIView):
     permission_classes = [permissions.IsAdminUser]
     def get(self, request, *args, **kwargs):
         return Response(get_mobcash_balance())
+
+class TestView(decorators.APIView):
+    def post(self, request, *args, **kwargs):
+        response = send_stats_to_user()
+        return Response({"response": response})
