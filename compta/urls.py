@@ -29,4 +29,5 @@ urlpatterns = [
     ),
     path("reset-filter", views.ResetUserTransactionFilterView.as_view()),
     path("test", views.TestView.as_view()),
+    path("auth-pusher", views.AuthenPusherUser.as_view()),
 ]

@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from django.contrib.auth.models import User
-
+from pusher import Pusher
 from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, UserTransactionFilter
 from compta.serializers import APITransactionSerializer, MobCashAppSerializer, TransactionSerializer, UserTransactionFilterSerializer
 from compta.services.filter_service import FilterService
@@ -324,3 +324,38 @@ class TestView(decorators.APIView):
     def post(self, request, *args, **kwargs):
         response = send_stats_to_user()
         return Response({"response": response})
+
+pusher_client = Pusher(
+    app_id=os.getenv("PUSER_ID"),
+    key=os.getenv("PUSHER_KEY"),
+    secret=os.getenv("PUSHER_SECRET"),
+    cluster="eu",
+    ssl=False,
+)
+class AuthenPusherUser(decorators.APIView):
+
+    def post(self, request, *args, **kwargs):
+        user = request.user
+        socket_id = request.data.get("socket_id")
+        channel_name = f"private-channel_{user.id}"
+        auth = None
+        if not socket_id:
+            return Response(
+                {"erreur": "Aucun socket trouvé"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if not channel_name:
+            return Response(
+                {"erreur": "Aucun channel trouvé"}, status=status.HTTP_400_BAD_REQUEST
+            )
+        if channel_name.startswith("private"):
+            auth = pusher_client.authenticate(channel=channel_name, socket_id=socket_id)
+        elif channel_name.startswith("presence"):
+            auth = pusher_client.authenticate(
+                channel=channel_name,
+                socket_id=socket_id,
+                custom_data={
+                    "user_id": user.id,
+                    "user_info": {"username": user.username, "email": user.email},
+                },
+            )
+        return Response(auth)
