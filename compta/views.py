@@ -241,12 +241,17 @@ def get_mobcash_stat(transactions):
             )["total"],
             "total_withdrawals": txs.filter(type="retrait").count(),
             "total_deposit": txs.filter(type="depot").count(),
+            "deposit_fee": mobcash.deposit_fee_percent,
+            "withdrawal_fee": mobcash.retrait_fee_percent,
+            "partner_deposit_fee": mobcash.partner_deposit_fee_percent,
+            "partner_withdrawal_fee": mobcash.partner_retrait_fee_percent,
         }
     sorted_data = OrderedDict(
         sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
     )
 
     return sorted_data  
+
 
 def get_api_stat(transactions):
     api_transactions = APITransaction.objects.all()
@@ -262,10 +267,20 @@ def get_api_stat(transactions):
         fee = txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0
 
         percent = (total / total_transactions * 100) if total_transactions > 0 else 0
-        #     mtn
-        # moov
-        # orange
-        # wave
+
+        # Calcule brut des stats réseau
+        raw_network_stat = {
+            "mtn": txs.filter(network="mtn").count(),
+            "moov": txs.filter(network="moov").count(),
+            "orange": txs.filter(network="orange").count(),
+            "wave": txs.filter(network="wave").count(),
+        }
+
+        # Tri décroissant des réseaux par nombre de transactions
+        sorted_network_stat = OrderedDict(
+            sorted(raw_network_stat.items(), key=lambda item: item[1], reverse=True)
+        )
+
         data[api] = {
             "label": api,
             "total": total,
@@ -281,12 +296,7 @@ def get_api_stat(transactions):
             )["total"],
             "total_withdrawals": txs.filter(type="retrait").count(),
             "total_deposit": txs.filter(type="depot").count(),
-            "network_stat": {
-                "mtn": transactions.filter(network="mtn").count(),
-                "moov": transactions.filter(network="moov").count(),
-                "orange": transactions.filter(network="orange").count(),
-                "wave": transactions.filter(network="wave").count(),
-            },
+            "network_stat": sorted_network_stat,
         }
 
     sorted_data = OrderedDict(
