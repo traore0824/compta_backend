@@ -4,6 +4,7 @@ from asgiref.sync import async_to_sync
 
 class JsonWebsocketConsumer(JsonWebsocketConsumer):
     def connect(self):
+        print("🟢 WebSocket consumer.connect() called for user", self.scope["user"])
         user = self.scope["user"]
         if not user.is_authenticated:
             print("User non authentifie")
