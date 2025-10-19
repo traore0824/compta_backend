@@ -122,8 +122,8 @@ def send_stats_to_user():
             "context": "user_filter",
             "data": {
                 "filters": {
-                    "start_date": filters.get("start_date"),
-                    "end_date": filters.get("end_date"),
+                    "start_date": str(filters.get("start_date")),
+                    "end_date": str(filters.get("end_date")),
                     "last": filters.get("last"),
                     "source": filters.get("source", []),
                     "network": filters.get("network", []),
