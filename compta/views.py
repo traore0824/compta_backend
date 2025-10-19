@@ -294,7 +294,7 @@ def get_api_stat(transactions):
             "total_withdrawals": txs.filter(type="retrait").count(),
             "total_deposit": txs.filter(type="depot").count(),
             "network_stat": sorted_network_stat,
-            
+            "id": api_transaction.id
         }
 
     sorted_data = OrderedDict(
