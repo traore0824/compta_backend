@@ -241,10 +241,10 @@ def get_mobcash_stat(transactions):
             )["total"],
             "total_withdrawals": txs.filter(type="retrait").count(),
             "total_deposit": txs.filter(type="depot").count(),
-            "deposit_fee": mobcash.deposit_fee_percent,
-            "withdrawal_fee": mobcash.retrait_fee_percent,
-            "partner_deposit_fee": mobcash.partner_deposit_fee_percent,
-            "partner_withdrawal_fee": mobcash.partner_retrait_fee_percent,
+            "deposit_fee_percent": mobcash.deposit_fee_percent,
+            "withdrawal_fee_percent": mobcash.retrait_fee_percent,
+            "partner_deposit_fee_percent": mobcash.partner_deposit_fee_percent,
+            "partner_withdrawal_fee_percent": mobcash.partner_retrait_fee_percent,
         }
     sorted_data = OrderedDict(
         sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
