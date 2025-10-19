@@ -1,491 +1,133 @@
 import os
 import requests
 from rest_framework import decorators, permissions, status, generics
-from django.utils.dateparse import parse_datetime, parse_date
-from collections import OrderedDict
-from compta.models import (
-    API_CHOICES,
-    NETWORK_CHOICES,
-    SOURCE_CHOICES,
-    TYPE_CHOICES,
-    APIBalanceUpdate,
-    APITransaction,
-    MobCashApp,
-    MobCashAppBalanceUpdate,
-    Transaction,
-    UserTransactionFilter,
-)
-from django.utils import timezone
-from django.db.models import Sum
-from typing import List
 from rest_framework.response import Response
-from datetime import timedelta
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from compta.serializers import (
-    APITransactionSerializer,
-    MobCashAppSerializer,
-    TransactionSerializer,
-    UserTransactionFilterSerializer,
-)
 from django.contrib.auth.models import User
-from django.utils.formats import number_format
+
+from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, UserTransactionFilter
+from compta.serializers import APITransactionSerializer, MobCashAppSerializer, TransactionSerializer, UserTransactionFilterSerializer
+from compta.services.filter_service import FilterService
+from compta.services.balance_service import BalanceService
+from compta.services.stats_services import StatsService
+from compta.services.transaction_service import TransactionService
 
 
 class ComptatView(decorators.APIView):
+    """
+    Vue principale pour récupérer les statistiques de comptabilité
+
+    Logique :
+    - Si des filtres sont envoyés → les utiliser
+    - Si aucun filtre envoyé → charger le dernier filtre sauvegardé
+    - Si start_date est null → prendre la date d'aujourd'hui
+    """
+
     permission_classes = [permissions.IsAdminUser]
 
     def get(self, request, *args, **kwargs):
-        transactions = Transaction.objects.all().order_by("-created_at")
-        start_date = request.GET.get("start_date")
-        end_date = request.GET.get("end_date")
-        last = request.GET.get("last")
-
-        # Récupération des filtres en listes
-        source_list = request.GET.getlist("source")
-        network_list = request.GET.getlist("network")
-        api_list = request.GET.getlist("api")
-        type_list = request.GET.getlist("type")
-        mobcash_list = request.GET.getlist("mobcash")
-
-        now = timezone.now()
-        if last:
-            if last == "yesterday":
-                start_date = now - timedelta(days=1)
-                end_date = now
-            elif last == "3_days":
-                start_date = now - timedelta(days=3)
-            elif last == "7_days":
-                start_date = now - timedelta(days=7)
-            elif last == "30_days":
-                start_date = now - timedelta(days=30)
-            elif last == "1_year":
-                start_date = now - timedelta(days=365)
-            elif last in ["always", "all"]:
-                start_date = None
-                end_date = None
-        else:
-            if not start_date:
-                start_date = None  # Par défaut pas de date actuelle
-
-        if start_date and isinstance(start_date, str):
-            start_date = parse_datetime(start_date)
-        if end_date and isinstance(end_date, str):
-            end_date = parse_datetime(end_date)
-
-        if start_date:
-            transactions = transactions.filter(created_at__gte=start_date)
-        if end_date:
-            transactions = transactions.filter(created_at__lte=end_date)
-        if source_list:
-            transactions = transactions.filter(source__in=source_list)
-        if network_list:
-            transactions = transactions.filter(network__in=network_list)
-        if api_list:
-            transactions = transactions.filter(api__in=api_list)
-        if mobcash_list:
-            transactions = transactions.filter(mobcash__in=mobcash_list)
-        if type_list:
-            transactions = transactions.filter(type__in=type_list)
-
-        # --- Calcul des soldes ---
-
-        api_balances = {}
-        for api_obj in APITransaction.objects.all():
-            name = api_obj.name
-            balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
-
-            if start_date and end_date:
-                updates_in_period = balance_updates.filter(
-                    created_at__gte=start_date, created_at__lte=end_date
-                )
-            elif start_date and not end_date:
-                updates_in_period = balance_updates.filter(created_at__gte=start_date)
-            else:
-                updates_in_period = balance_updates.none()
-
-            if updates_in_period.exists():
-                last_update = updates_in_period.order_by("-created_at").first()
-                balance = last_update.balance
-            elif start_date:
-                last_update_before = (
-                    balance_updates.filter(created_at__lt=start_date)
-                    .order_by("-created_at")
-                    .first()
-                )
-                if last_update_before:
-                    balance = last_update_before.balance
-                else:
-                    balance = api_obj.balance
-            else:
-                balance = api_obj.balance
-            api_balances[name] = balance
-
-        mobcash_balances = {}
-        for mobcash_obj in MobCashApp.objects.all():
-            name = mobcash_obj.name
-            balance_updates = MobCashAppBalanceUpdate.objects.filter(
-                mobcash_balance=mobcash_obj
-            )
-
-            if start_date and end_date:
-                updates_in_period = balance_updates.filter(
-                    created_at__gte=start_date, created_at__lte=end_date
-                )
-            elif start_date and not end_date:
-                updates_in_period = balance_updates.filter(created_at__gte=start_date)
-            else:
-                updates_in_period = balance_updates.none()
-
-            if updates_in_period.exists():
-                last_update = updates_in_period.order_by("-created_at").first()
-                balance = last_update.balance
-            elif start_date:
-                last_update_before = (
-                    balance_updates.filter(created_at__lt=start_date)
-                    .order_by("-created_at")
-                    .first()
-                )
-                if last_update_before:
-                    balance = last_update_before.balance
-                else:
-                    balance = mobcash_obj.balance
-            else:
-                balance = mobcash_obj.balance
-            mobcash_balances[name] = balance
-
-        total_api_balance = sum(api_balances.values())
-        total_mobcash_balance = sum(mobcash_balances.values())
-        # total_api_balance = (
-        #     APITransaction.objects.all().aggregate(total=Sum("balance"))["total"] or 0
-        # )
-        # total_mobcash_balance = MobCashApp.objects.all().aggregate(
-        #     total=Sum("balance")
-        # )["total"]  or 0
-        total_balance = total_api_balance + total_mobcash_balance
-
+        # 1. Parser les filtres
+        filters = FilterService.parse_filters_from_request(request)
+        
+        # 2. Récupérer et filtrer les transactions
+        transactions = TransactionService.get_all_transactions()
+        transactions = FilterService.apply_filters(transactions, filters)
+        
+        # 3. Calculer les agrégats
+        aggregates = TransactionService.get_transaction_aggregates(transactions)
+        
+        # 4. Calculer les balances
+        balances = BalanceService.get_all_balances(
+            filters.get('start_date'),
+            filters.get('end_date')
+        )
+        
+        # 5. Calculer les stats
+        stats = StatsService.get_all_stats(transactions)
+        
+        # 6. Sauvegarder le filtre
+        FilterService.save_user_filter(request.user, filters)
+        
+        # 7. Construire la réponse (FORMAT EXACT comme avant)
         data = {
             "filters": {
-                "start_date": start_date,
-                "end_date": end_date,
-                "last": last,
-                "source": source_list,
-                "network": network_list,
-                "api": api_list,
-                "mobcash": mobcash_list,
-                "type": type_list,
+                "start_date": filters.get('start_date'),
+                "end_date": filters.get('end_date'),
+                "last": filters.get('last'),
+                "source": filters.get('source', []),
+                "network": filters.get('network', []),
+                "api": filters.get('api', []),
+                "mobcash": filters.get('mobcash', []),
+                "type": filters.get('type', []),
             },
-            "total": transactions.count(),
-            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
-            or 0,
-            "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"] or 0,
-            "amount": transactions.aggregate(total=Sum("amount"))["total"] or 0,
-            "mobcash_stats": get_mobcash_stat(transactions),
-            "api_stats": get_api_stat(transactions),
-            "network_stats": get_network_stat(transactions),
-            "source_stats": get_source_stat(transactions),
-            "type_stats": get_type_stat(transactions),
-            "balances": {
-                "api_balances": api_balances,
-                "mobcash_balances": mobcash_balances,
-                "total_api_balance": total_api_balance,
-                "total_mobcash_balance": total_mobcash_balance,
-                "total_balance": total_balance,
-            },
+            "total": aggregates['total'],
+            "mobcash_fee": aggregates['mobcash_fee'],
+            "blaffa_fee": aggregates['blaffa_fee'],
+            "amount": aggregates['amount'],
+            "mobcash_stats": stats['mobcash_stats'],
+            "api_stats": stats['api_stats'],
+            "network_stats": stats['network_stats'],
+            "source_stats": stats['source_stats'],
+            "type_stats": stats['type_stats'],
+            "balances": balances,
         }
-
-        UserTransactionFilter.objects.update_or_create(
-            user=request.user,
-            defaults={
-                "last": last,
-                "start_date": start_date,
-                "end_date": end_date,
-                "source": source_list,
-                "network": network_list,
-                "api": api_list,
-                "type": type_list,
-                "mobcash": mobcash_list,
-            },
-        )
+        
         return Response(data)
 
 
-def get_mobcash_stat(transactions):
-    mobcash_apps = MobCashApp.objects.all()
-    data = {}
-    for mobcash in mobcash_apps:
-        name = mobcash.name
-        txs = transactions.filter(mobcash=name)
-        data[name] = {
-            "total": txs.count(),
-            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
-            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-            "image": mobcash.image,
-            "balance": mobcash.balance,
-            "id": mobcash.id,
-            "name": mobcash.name.upper(),
-            "total_commission_amount": txs.aggregate(total=Sum("mobcash_fee"))["total"]
-            or 0,
-            "total_operations_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
-            "withdrawal_commission": txs.filter(type="retrait").aggregate(
-                total=Sum("mobcash_fee")
-            )["total"],
-            "deposit_commission": txs.filter(type="depot").aggregate(
-                total=Sum("mobcash_fee")
-            )["total"],
-            "total_withdrawal_amount": txs.filter(type="retrait").aggregate(
-                total=Sum("amount")
-            )["total"],
-            "total_deposit_amount": txs.filter(type="depot").aggregate(
-                total=Sum("amount")
-            )["total"],
-            "total_withdrawals": txs.filter(type="retrait").count(),
-            "total_deposit": txs.filter(type="depot").count(),
-            "mobcash_setting": MobCashAppSerializer(mobcash).data
-        }
-    sorted_data = OrderedDict(
-        sorted(data.items(), key=lambda item: item[1]["balance"], reverse=True)
-    )
-
-    return sorted_data  
-
-
-def get_api_stat(transactions):
-    api_transactions = APITransaction.objects.all()
-    data = {}
-
-    total_transactions = transactions.count()
-
-    for api_transaction in api_transactions:
-        api = api_transaction.name.lower()
-        txs = transactions.filter(api=api)
-        total = txs.count()
-        total_amount = txs.aggregate(total=Sum("amount"))["total"] or 0
-        fee = txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0
-
-        percent = (total / total_transactions * 100) if total_transactions > 0 else 0
-
-        # Calcule brut des stats réseau
-        raw_network_stat = {
-            "mtn": txs.filter(network="mtn").count(),
-            "moov": txs.filter(network="moov").count(),
-            "orange": txs.filter(network="orange").count(),
-            "wave": txs.filter(network="wave").count(),
-        }
-
-        # Tri décroissant des réseaux par nombre de transactions
-        sorted_network_stat = OrderedDict(
-            sorted(raw_network_stat.items(), key=lambda item: item[1], reverse=True)
-        )
-
-        data[api] = {
-            "label": api,
-            "total": total,
-            "total_amount": total_amount,
-            "fee": fee,
-            "balance": api_transaction.balance,
-            "percent": round(percent, 2),
-            "total_withdrawal_amount": txs.filter(type="retrait").aggregate(
-                total=Sum("amount")
-            )["total"],
-            "total_deposit_amount": txs.filter(type="depot").aggregate(
-                total=Sum("amount")
-            )["total"],
-            "total_withdrawals": txs.filter(type="retrait").count(),
-            "total_deposit": txs.filter(type="depot").count(),
-            "network_stat": sorted_network_stat,
-            "id": api_transaction.id
-        }
-
-    sorted_data = OrderedDict(
-        sorted(data.items(), key=lambda item: item[1]["percent"], reverse=True)
-    )
-
-    return sorted_data
-
-
-def get_network_stat(transactions):
-    data = {}
-    for value, label in NETWORK_CHOICES:
-        txs = transactions.filter(network=value)
-        data[value] = {
-            "label": label,
-            "total": txs.count(),
-            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
-            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-        }
-    return data
-
-
-def get_source_stat(transactions):
-    data = {}
-    for value, label in SOURCE_CHOICES:
-        txs = transactions.filter(source=value)
-        data[value] = {
-            "label": label,
-            "total": txs.count(),
-            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
-            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-        }
-    return data
-
-
-def get_type_stat(transactions):
-    data = {}
-    for value, label in TYPE_CHOICES:
-        txs = transactions.filter(type=value)
-        data[value] = {
-            "label": label,
-            "total": txs.count(),
-            "total_amount": txs.aggregate(total=Sum("amount"))["total"] or 0,
-            "fee": txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0,
-        }
-    return data
-
-
 def send_stats_to_user():
-    user_filter = UserTransactionFilter.objects.first()
-    transactions = Transaction.objects.all().order_by("-created_at")
-    if not user_filter:
-        return
-    if user_filter and user_filter.last:
-        now = timezone.now()
-        if user_filter.last == "yesterday":
-            start_date = now - timedelta(days=1)
-            end_date = now
-        elif user_filter.last == "3_days":
-            start_date = now - timedelta(days=3)
-            end_date = None
-        elif user_filter.last == "7_days":
-            start_date = now - timedelta(days=7)
-            end_date = None
-        elif user_filter.last == "30_days":
-            start_date = now - timedelta(days=30)
-            end_date = None
-        elif user_filter.last == "1_year":
-            start_date = now - timedelta(days=365)
-            end_date = None
-        elif user_filter.last in ["all", "always"]:
-            start_date = None
-            end_date = None
-    else:
-        start_date = user_filter.start_date
-        end_date = user_filter.end_date
+    """
+    Envoie les stats en temps réel via WebSocket
+    Utilise le dernier filtre de l'utilisateur
+    """
+    try:
+        # Récupérer le premier utilisateur (à adapter selon ton besoin)
+        user = User.objects.first()
+        if not user:
+            return
 
-    if start_date and isinstance(start_date, str):
-        start_date = parse_datetime(start_date)
-    if end_date and isinstance(end_date, str):
-        end_date = parse_datetime(end_date)
+        # Charger le dernier filtre de l'utilisateur
+        filters = FilterService.load_user_last_filter(user)
+        filters = FilterService.process_dates(filters)
 
-    if start_date:
-        transactions = transactions.filter(created_at__gte=start_date)
-    if end_date:
-        transactions = transactions.filter(created_at__lte=end_date)
+        # Si start_date est null, prendre aujourd'hui
+        if not filters.get("start_date"):
+            from django.utils import timezone
 
-    if user_filter.source:
-        transactions = transactions.filter(source=user_filter.source)
-    if user_filter.network:
-        transactions = transactions.filter(network=user_filter.network)
-    if user_filter.api:
-        transactions = transactions.filter(api=user_filter.api)
-    if user_filter.mobcash:
-        transactions = transactions.filter(mobcash=user_filter.mobcash)
-    if user_filter.type:
-        transactions = transactions.filter(type=user_filter.type)
-
-    # Récupération des soldes API et MobCash avec la même logique que dans ComptatView.get
-
-    api_balances = {}
-    for api_obj in APITransaction.objects.all():
-        name = api_obj.name
-
-        balance_updates = APIBalanceUpdate.objects.filter(api_transaction=api_obj)
-        if start_date and end_date:
-            updates_in_period = balance_updates.filter(
-                created_at__gte=start_date, created_at__lte=end_date
+            filters["start_date"] = timezone.now().replace(
+                hour=0, minute=0, second=0, microsecond=0
             )
-        elif start_date and not end_date:
-            updates_in_period = balance_updates.filter(created_at__gte=start_date)
-        else:
-            updates_in_period = balance_updates.none()
 
-        if updates_in_period.exists():
-            last_update = updates_in_period.order_by("-created_at").first()
-            balance = last_update.balance
-        elif start_date:
-            last_update_before = (
-                balance_updates.filter(created_at__lt=start_date)
-                .order_by("-created_at")
-                .first()
-            )
-            if last_update_before:
-                balance = last_update_before.balance
-            else:
-                balance = api_obj.balance
-        else:
-            balance = api_obj.balance
-        api_balances[name] = balance
+        # Récupérer et filtrer les transactions
+        transactions = TransactionService.get_all_transactions()
+        transactions = FilterService.apply_filters(transactions, filters)
 
-    mobcash_balances = {}
-    for mobcash_obj in MobCashApp.objects.all():
-        name = mobcash_obj.name
-
-        balance_updates = MobCashAppBalanceUpdate.objects.filter(
-            mobcash_balance=mobcash_obj
+        # Calculer les agrégats et balances
+        aggregates = TransactionService.get_transaction_aggregates(transactions)
+        balances = BalanceService.get_all_balances(
+            filters.get("start_date"), filters.get("end_date")
         )
-        if start_date and end_date:
-            updates_in_period = balance_updates.filter(
-                created_at__gte=start_date, created_at__lte=end_date
-            )
-        elif start_date and not end_date:
-            updates_in_period = balance_updates.filter(created_at__gte=start_date)
-        else:
-            updates_in_period = balance_updates.none()
 
-        if updates_in_period.exists():
-            last_update = updates_in_period.order_by("-created_at").first()
-            balance = last_update.balance
-        elif start_date:
-            last_update_before = (
-                balance_updates.filter(created_at__lt=start_date)
-                .order_by("-created_at")
-                .first()
-            )
-            if last_update_before:
-                balance = last_update_before.balance
-            else:
-                balance = mobcash_obj.balance
-        else:
-            balance = mobcash_obj.balance
-        mobcash_balances[name] = balance
-
-    total_api_balance = sum(api_balances.values())
-    total_mobcash_balance = sum(mobcash_balances.values())
-    total_balance = total_api_balance + total_mobcash_balance
-
-    stats = {
-        "type": "stats_update",
-        "context": "user_filter",
-        "data": {
-            "total": transactions.count(),
-            "amount": transactions.aggregate(total=Sum("amount"))["total"] or 0,
-            "mobcash_fee": transactions.aggregate(total=Sum("mobcash_fee"))["total"]
-            or 0,
-            "blaffa_fee": transactions.aggregate(total=Sum("blaffa_fee"))["total"],
-            "balances": {
-                "api_balances": api_balances,
-                "mobcash_balances": mobcash_balances,
-                "total_api_balance": total_api_balance,
-                "total_mobcash_balance": total_mobcash_balance,
-                "total_balance": total_balance,
+        # Construire le message stats
+        stats = {
+            "type": "stats_update",
+            "context": "user_filter",
+            "data": {
+                **aggregates,
+                "balances": balances,
             },
-        },
-    }
-    channel_layer = get_channel_layer()
-    async_to_sync(channel_layer.group_send)(
-        f"user_{User.objects.first().id}_channel",
-        {"type": "stat_data", "message": stats},
-    )
+        }
+
+        # Envoyer via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f"user_{user.id}_channel",
+            {"type": "stat_data", "message": stats},
+        )
+    except Exception as e:
+        # Log l'erreur (à adapter selon ton système de logging)
+        print(f"Erreur send_stats_to_user: {e}")
 
 
 def send_telegram_message(chat_id, content):

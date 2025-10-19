@@ -4,6 +4,31 @@ from django.contrib.auth.models import User
 from django.conf import settings
 import re
 
+from typing import Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def log_filter_usage(user, filters: Dict[str, Any]):
+    """
+    Log l'utilisation des filtres pour le monitoring
+    """
+    logger.info(
+        f"User {user.username} used filters: "
+        f"start_date={filters.get('start_date')}, "
+        f"end_date={filters.get('end_date')}, "
+        f"last={filters.get('last')}"
+    )
+
+
+def format_balance(amount: float) -> str:
+    """
+    Formate un montant en devise locale
+    """
+    return f"{amount:,.2f} FCFA"
+
+
 def send_mails(subject, to_email, template_name, context={}, body=None):
     try:
         user = User.objects.filter(email=to_email).first()
