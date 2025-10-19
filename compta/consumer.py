@@ -25,9 +25,11 @@ class JsonWebsocketConsumer(JsonWebsocketConsumer):
         )
 
     def stat_data(self, event):
+        print(f"Le statistic a ete envoyer avec {event}")
         self.send_json({"type": "stat_data", "data": event.get("data")})
 
     def disconnect(self, code):
+        print("User est deconnecter")
         user = self.scope["user"]
         if not user.is_authenticated:
             self.close()
