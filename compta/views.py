@@ -146,11 +146,12 @@ def send_stats_to_user():
 
         # Envoyer via WebSocket
 
-        pusher_client.trigger(
+        response = pusher_client.trigger(
             f"private-channel_{user.id}",  
             "stat_data",  
             data, 
         )
+        return response
     except Exception as e:
         # Log l'erreur (à adapter selon ton système de logging)
         print(f"Erreur send_stats_to_user: {e}")
