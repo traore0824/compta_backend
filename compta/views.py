@@ -7,13 +7,19 @@ from channels.layers import get_channel_layer
 from django.contrib.auth.models import User
 from pusher import Pusher
 from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, UserTransactionFilter
-from compta.serializers import APITransactionSerializer, MobCashAppSerializer, TransactionSerializer, UserTransactionFilterSerializer
+from compta.serializers import APITransactionSerializer, MobCashAppSerializer, PusherAuthSerializer, TransactionSerializer, UserTransactionFilterSerializer
 from compta.services.filter_service import FilterService
 from compta.services.balance_service import BalanceService
 from compta.services.stats_services import StatsService
 from compta.services.transaction_service import TransactionService
 
-
+pusher_client = Pusher(
+    app_id=os.getenv("PUSER_ID"),
+    key=os.getenv("PUSHER_KEY"),
+    secret=os.getenv("PUSHER_SECRET"),
+    cluster="eu",
+    ssl=False,
+)
 class ComptatView(decorators.APIView):
     """
     Vue principale pour récupérer les statistiques de comptabilité
@@ -139,11 +145,11 @@ def send_stats_to_user():
         }
 
         # Envoyer via WebSocket
-        
-        channel_layer = get_channel_layer()
-        async_to_sync(channel_layer.group_send)(
-            f"private_channel_{user.id}",
-            {"type": "stat_data", "data": data},
+
+        pusher_client.trigger(
+            f"private-channel_{user.id}",  
+            "stat_data",  
+            data, 
         )
     except Exception as e:
         # Log l'erreur (à adapter selon ton système de logging)
@@ -325,37 +331,30 @@ class TestView(decorators.APIView):
         response = send_stats_to_user()
         return Response({"response": response})
 
-pusher_client = Pusher(
-    app_id=os.getenv("PUSER_ID"),
-    key=os.getenv("PUSHER_KEY"),
-    secret=os.getenv("PUSHER_SECRET"),
-    cluster="eu",
-    ssl=False,
-)
+
 class AuthenPusherUser(decorators.APIView):
+    permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, *args, **kwargs):
-        user = request.user
-        socket_id = request.data.get("socket_id")
-        channel_name = f"private-channel_{user.id}"
-        auth = None
-        if not socket_id:
-            return Response(
-                {"erreur": "Aucun socket trouvé"}, status=status.HTTP_400_BAD_REQUEST
-            )
+        serializer = PusherAuthSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        socket_id = serializer.validated_data["socket_id"]
+        channel_name = f"private-channel_{request.user.id}"
         if not channel_name:
-            return Response(
-                {"erreur": "Aucun channel trouvé"}, status=status.HTTP_400_BAD_REQUEST
-            )
-        if channel_name.startswith("private"):
-            auth = pusher_client.authenticate(channel=channel_name, socket_id=socket_id)
-        elif channel_name.startswith("presence"):
-            auth = pusher_client.authenticate(
-                channel=channel_name,
-                socket_id=socket_id,
-                custom_data={
-                    "user_id": user.id,
-                    "user_info": {"username": user.username, "email": user.email},
-                },
-            )
-        return Response(auth)
+            return Response({"erreur": "Aucun channel trouvé"}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            if channel_name.startswith("private"):
+                auth = pusher_client.authenticate(channel=channel_name, socket_id=socket_id)
+            else:
+                auth = pusher_client.authenticate(
+                    channel=channel_name,
+                    socket_id=socket_id,
+                    custom_data={
+                        "user_id": request.user.id,
+                        "user_info": {"username": request.user.username, "email": request.user.email},
+                    },
+                )
+        except Exception as e:
+            return Response({"erreur": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        return Response(auth, status=status.HTTP_200_OK)

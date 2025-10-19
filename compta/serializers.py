@@ -76,3 +76,8 @@ class UserTransactionFilterSerializer(serializers.ModelSerializer):
         model = UserTransactionFilter
         fields = "__all__"
         read_only_fields = ["user", "updated_at"]
+
+
+class PusherAuthSerializer(serializers.Serializer):
+    socket_id = serializers.CharField()
+    channel_name = serializers.CharField(required=False, allow_blank=True)
