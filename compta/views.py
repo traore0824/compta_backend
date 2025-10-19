@@ -262,7 +262,10 @@ def get_api_stat(transactions):
         fee = txs.aggregate(total=Sum("mobcash_fee"))["total"] or 0
 
         percent = (total / total_transactions * 100) if total_transactions > 0 else 0
-
+        #     mtn
+        # moov
+        # orange
+        # wave
         data[api] = {
             "label": api,
             "total": total,
@@ -270,6 +273,20 @@ def get_api_stat(transactions):
             "fee": fee,
             "balance": api_transaction.balance,
             "percent": round(percent, 2),
+            "total_withdrawal_amount": txs.filter(type="retrait").aggregate(
+                total=Sum("amount")
+            )["total"],
+            "total_deposit_amount": txs.filter(type="depot").aggregate(
+                total=Sum("amount")
+            )["total"],
+            "total_withdrawals": txs.filter(type="retrait").count(),
+            "total_deposit": txs.filter(type="depot").count(),
+            "network_stat": {
+                "mtn": transactions.filter(network="mtn").count(),
+                "moov": transactions.filter(network="moov").count(),
+                "orange": transactions.filter(network="orange").count(),
+                "wave": transactions.filter(network="wave").count(),
+            },
         }
 
     sorted_data = OrderedDict(
