@@ -87,6 +87,19 @@ class ComptatView(decorators.APIView):
 
         return Response(data)
 
+from decimal import Decimal
+from datetime import datetime, date
+
+class DecimalEncoder(json.JSONEncoder):
+    """Encoder personnalisé pour gérer Decimal, datetime, etc."""
+
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
+
 
 def send_stats_to_user():
     """
@@ -121,46 +134,47 @@ def send_stats_to_user():
 
         # Calculer les agrégats, balances et stats
         aggregates = TransactionService.get_transaction_aggregates(transactions)
-        balances = BalanceService.get_all_balances()  # Balances actuelles uniquement
+        balances = BalanceService.get_all_balances()
         stats = StatsService.get_all_stats(transactions)
 
-        # Construire le message stats avec le format complet
+        # Préparer les données
+        stats_payload = {
+            "filters": {
+                "start_date": (
+                    filters.get("start_date").isoformat()
+                    if filters.get("start_date")
+                    else None
+                ),
+                "end_date": (
+                    filters.get("end_date").isoformat()
+                    if filters.get("end_date")
+                    else None
+                ),
+                "last": filters.get("last"),
+                "is_all_date": filters.get("is_all_date", False),
+                "source": filters.get("source", []),
+                "network": filters.get("network", []),
+                "api": filters.get("api", []),
+                "mobcash": filters.get("mobcash", []),
+                "type": filters.get("type", []),
+            },
+            "total": aggregates.get("total"),
+            "mobcash_fee": aggregates.get("mobcash_fee"),
+            "blaffa_fee": aggregates.get("blaffa_fee"),
+            "amount": aggregates.get("amount"),
+            "mobcash_stats": stats.get("mobcash_stats"),
+            "api_stats": stats.get("api_stats"),
+            "network_stats": stats.get("network_stats"),
+            "source_stats": stats.get("source_stats"),
+            "type_stats": stats.get("type_stats"),
+            "balances": balances,
+        }
+
+        # Construire le message avec JSON encoder personnalisé
         data = {
             "type": "stats_update",
             "context": "user_filter",
-            "data": json.dumps(
-                {
-                    "filters": {
-                        "start_date": (
-                            str(filters.get("start_date"))
-                            if filters.get("start_date")
-                            else None
-                        ),
-                        "end_date": (
-                            str(filters.get("end_date"))
-                            if filters.get("end_date")
-                            else None
-                        ),
-                        "last": filters.get("last"),
-                        "is_all_date": filters.get("is_all_date", False),
-                        "source": filters.get("source", []),
-                        "network": filters.get("network", []),
-                        "api": filters.get("api", []),
-                        "mobcash": filters.get("mobcash", []),
-                        "type": filters.get("type", []),
-                    },
-                    "total": aggregates.get("total"),
-                    "mobcash_fee": float(aggregates.get("mobcash_fee")),
-                    "blaffa_fee": float(aggregates.get("blaffa_fee")),
-                    "amount": float(aggregates.get("amount")),
-                    "mobcash_stats": stats.get("mobcash_stats"),
-                    "api_stats": stats.get("api_stats"),
-                    "network_stats": stats.get("network_stats"),
-                    "source_stats": stats.get("source_stats"),
-                    "type_stats": stats.get("type_stats"),
-                    "balances": balances,
-                }
-            ),
+            "data": json.dumps(stats_payload, cls=DecimalEncoder),  # ← CLEF ICI
         }
 
         # Envoyer via WebSocket
