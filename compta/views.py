@@ -4,6 +4,7 @@ from rest_framework import decorators, permissions, status, generics
 from rest_framework.response import Response
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
+from datetime import time, datetime
 from django.contrib.auth.models import User
 from pusher import Pusher
 from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, UserTransactionFilter
@@ -12,7 +13,7 @@ from compta.services.filter_service import FilterService
 from compta.services.balance_service import BalanceService
 from compta.services.stats_services import StatsService
 from compta.services.transaction_service import TransactionService
-
+from django.utils import timezone
 pusher_client = Pusher(
     app_id=os.getenv("PUSER_ID"),
     key=os.getenv("PUSHER_KEY"),
@@ -120,7 +121,7 @@ def send_stats_to_user():
         data = {
             "type": "stats_update",
             "context": "user_filter",
-            "data": {
+            "data": str({
                 "filters": {
                     "start_date": str(filters.get("start_date")),
                     "end_date": str(filters.get("end_date")),
@@ -141,7 +142,7 @@ def send_stats_to_user():
                 "source_stats": stats.get("source_stats"),
                 "type_stats": stats.get("type_stats"),
                 "balances": balances,
-            },
+            }),
         }
 
         # Envoyer via WebSocket
@@ -199,9 +200,14 @@ class ResetUserTransactionFilterView(decorators.APIView):
     permission_classes = [permissions.IsAdminUser]
 
     def post(self, request, *args, **kwargs):
+        today = timezone.localtime().date()
+        start_datetime = timezone.make_aware(
+            datetime.combine(today, time(hour=0, minute=1))
+        )
+
         defaults = {
             "last": None,
-            "start_date": None,
+            "start_date": start_datetime,
             "end_date": None,
             "source": [],
             "network": [],
@@ -212,7 +218,9 @@ class ResetUserTransactionFilterView(decorators.APIView):
         filter_obj, created = UserTransactionFilter.objects.update_or_create(
             user=request.user, defaults=defaults
         )
-        return Response(UserTransactionFilterSerializer(filter_obj).data, status=status.HTTP_200_OK)
+        return Response(
+            UserTransactionFilterSerializer(filter_obj).data, status=status.HTTP_200_OK
+        )
 
 
 class MobCashAppListView(generics.ListAPIView):
