@@ -111,6 +111,7 @@ class UserTransactionFilter(models.Model):
     last = models.CharField(max_length=20, null=True, blank=True)
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True)
+    is_all_date = models.BooleanField(default=False)
     source = models.JSONField(
          null=True, blank=True, default=list
     )
@@ -119,6 +120,7 @@ class UserTransactionFilter(models.Model):
     type = models.JSONField(null=True, blank=True, default=list)
     mobcash = models.JSONField(null=True, blank=True, default=list)
     updated_at = models.DateTimeField(auto_now=True)
+
 
     def __str__(self):
         return f"Filter for {self.user.username}"

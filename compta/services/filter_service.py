@@ -14,6 +14,7 @@ class FilterService:
         """
         Parse les filtres depuis la requête
         Si aucun filtre n'est envoyé, charge le dernier filtre sauvegardé
+        Si is_all_date = True, ignore les dates
         Si start_date est null, prend la date d'aujourd'hui
         """
         # Vérifier si des filtres sont envoyés dans la requête
@@ -22,6 +23,7 @@ class FilterService:
                 request.GET.get("start_date"),
                 request.GET.get("end_date"),
                 request.GET.get("last"),
+                request.GET.get("is_all_date"),
                 request.GET.getlist("source"),
                 request.GET.getlist("network"),
                 request.GET.getlist("api"),
@@ -36,6 +38,8 @@ class FilterService:
                 "start_date": request.GET.get("start_date"),
                 "end_date": request.GET.get("end_date"),
                 "last": request.GET.get("last"),
+                "is_all_date": request.GET.get("is_all_date", "false").lower()
+                == "true",
                 "source": request.GET.getlist("source"),
                 "network": request.GET.getlist("network"),
                 "api": request.GET.getlist("api"),
@@ -49,8 +53,12 @@ class FilterService:
         # Traiter les dates (conversion + gestion du "last")
         filters = FilterService.process_dates(filters)
 
-        # Si start_date est toujours null après traitement, mettre aujourd'hui
-        if not filters.get("start_date"):
+        # Si is_all_date = True, ignorer les dates (toutes les dates depuis création)
+        if filters.get("is_all_date"):
+            filters["start_date"] = None
+            filters["end_date"] = None
+        # Sinon, si start_date est toujours null après traitement, mettre aujourd'hui
+        elif not filters.get("start_date"):
             filters["start_date"] = timezone.now().replace(
                 hour=0, minute=0, second=0, microsecond=0
             )
@@ -69,6 +77,7 @@ class FilterService:
                 "start_date": user_filter.start_date,
                 "end_date": user_filter.end_date,
                 "last": user_filter.last,
+                "is_all_date": user_filter.is_all_date,
                 "source": user_filter.source or [],
                 "network": user_filter.network or [],
                 "api": user_filter.api or [],
@@ -81,6 +90,7 @@ class FilterService:
                 "start_date": None,  # Sera remplacé par aujourd'hui plus tard
                 "end_date": None,
                 "last": None,
+                "is_all_date": False,
                 "source": [],
                 "network": [],
                 "api": [],
@@ -101,21 +111,27 @@ class FilterService:
             if last == "yesterday":
                 filters["start_date"] = now - timedelta(days=1)
                 filters["end_date"] = now
+                filters["is_all_date"] = False
             elif last == "3_days":
                 filters["start_date"] = now - timedelta(days=3)
                 filters["end_date"] = None
+                filters["is_all_date"] = False
             elif last == "7_days":
                 filters["start_date"] = now - timedelta(days=7)
                 filters["end_date"] = None
+                filters["is_all_date"] = False
             elif last == "30_days":
                 filters["start_date"] = now - timedelta(days=30)
                 filters["end_date"] = None
+                filters["is_all_date"] = False
             elif last == "1_year":
                 filters["start_date"] = now - timedelta(days=365)
                 filters["end_date"] = None
+                filters["is_all_date"] = False
             elif last in ["always", "all"]:
                 filters["start_date"] = None
                 filters["end_date"] = None
+                filters["is_all_date"] = True
         else:
             # Conversion des dates string en datetime
             start_date = filters.get("start_date")
@@ -134,21 +150,23 @@ class FilterService:
         """
         Applique tous les filtres à un QuerySet de transactions
         """
-        start_date = filters.get("start_date")
-        end_date = filters.get("end_date")
+        # Si is_all_date = True, ne pas filtrer par dates
+        if not filters.get("is_all_date"):
+            start_date = filters.get("start_date")
+            end_date = filters.get("end_date")
+
+            if start_date:
+                queryset = queryset.filter(created_at__gte=start_date)
+            if end_date:
+                queryset = queryset.filter(created_at__lte=end_date)
+
+        # Filtres sur les choix
         source_list = filters.get("source", [])
         network_list = filters.get("network", [])
         api_list = filters.get("api", [])
         type_list = filters.get("type", [])
         mobcash_list = filters.get("mobcash", [])
 
-        # Filtres de dates
-        if start_date:
-            queryset = queryset.filter(created_at__gte=start_date)
-        if end_date:
-            queryset = queryset.filter(created_at__lte=end_date)
-
-        # Filtres sur les choix
         if source_list:
             queryset = queryset.filter(source__in=source_list)
         if network_list:
@@ -173,6 +191,7 @@ class FilterService:
                 "last": filters.get("last"),
                 "start_date": filters.get("start_date"),
                 "end_date": filters.get("end_date"),
+                "is_all_date": filters.get("is_all_date", False),
                 "source": filters.get("source", []),
                 "network": filters.get("network", []),
                 "api": filters.get("api", []),

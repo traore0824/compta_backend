@@ -28,6 +28,7 @@ class ComptatView(decorators.APIView):
     Logique :
     - Si des filtres sont envoyés → les utiliser
     - Si aucun filtre envoyé → charger le dernier filtre sauvegardé
+    - Si is_all_date = True → ignorer start_date et end_date
     - Si start_date est null → prendre la date d'aujourd'hui
     """
 
@@ -37,46 +38,49 @@ class ComptatView(decorators.APIView):
         # 1. Parser les filtres
         filters = FilterService.parse_filters_from_request(request)
 
-        # 2. Récupérer et filtrer les transactions
+        # 2. Gérer is_all_date (toutes les dates depuis la création)
+        if filters.get("is_all_date"):
+            filters["start_date"] = None
+            filters["end_date"] = None
+
+        # 3. Récupérer et filtrer les transactions
         transactions = TransactionService.get_all_transactions()
         transactions = FilterService.apply_filters(transactions, filters)
 
-        # 3. Calculer les agrégats
+        # 4. Calculer les agrégats
         aggregates = TransactionService.get_transaction_aggregates(transactions)
 
-        # 4. Calculer les balances
-        balances = BalanceService.get_all_balances(
-            filters.get('start_date'),
-            filters.get('end_date')
-        )
+        # 5. Calculer les balances actuelles (pas de période)
+        balances = BalanceService.get_all_balances()
 
-        # 5. Calculer les stats
+        # 6. Calculer les stats
         stats = StatsService.get_all_stats(transactions)
 
-        # 6. Sauvegarder le filtre
+        # 7. Sauvegarder le filtre
         FilterService.save_user_filter(request.user, filters)
 
-        # 7. Construire la réponse (FORMAT EXACT comme avant)
+        # 8. Construire la réponse
         data = {
             "filters": {
-                "start_date": filters.get('start_date'),
-                "end_date": filters.get('end_date'),
-                "last": filters.get('last'),
-                "source": filters.get('source', []),
-                "network": filters.get('network', []),
-                "api": filters.get('api', []),
-                "mobcash": filters.get('mobcash', []),
-                "type": filters.get('type', []),
+                "start_date": filters.get("start_date"),
+                "end_date": filters.get("end_date"),
+                "last": filters.get("last"),
+                "is_all_date": filters.get("is_all_date", False),
+                "source": filters.get("source", []),
+                "network": filters.get("network", []),
+                "api": filters.get("api", []),
+                "mobcash": filters.get("mobcash", []),
+                "type": filters.get("type", []),
             },
-            "total": aggregates['total'],
-            "mobcash_fee": aggregates['mobcash_fee'],
-            "blaffa_fee": aggregates['blaffa_fee'],
-            "amount": aggregates['amount'],
-            "mobcash_stats": stats['mobcash_stats'],
-            "api_stats": stats['api_stats'],
-            "network_stats": stats['network_stats'],
-            "source_stats": stats['source_stats'],
-            "type_stats": stats['type_stats'],
+            "total": aggregates["total"],
+            "mobcash_fee": aggregates["mobcash_fee"],
+            "blaffa_fee": aggregates["blaffa_fee"],
+            "amount": aggregates["amount"],
+            "mobcash_stats": stats["mobcash_stats"],
+            "api_stats": stats["api_stats"],
+            "network_stats": stats["network_stats"],
+            "source_stats": stats["source_stats"],
+            "type_stats": stats["type_stats"],
             "balances": balances,
         }
 
@@ -98,8 +102,12 @@ def send_stats_to_user():
         filters = FilterService.load_user_last_filter(user)
         filters = FilterService.process_dates(filters)
 
-        # Si start_date est null, prendre aujourd'hui
-        if not filters.get("start_date"):
+        # Gérer is_all_date
+        if filters.get("is_all_date"):
+            filters["start_date"] = None
+            filters["end_date"] = None
+        # Sinon, si start_date est null, prendre aujourd'hui
+        elif not filters.get("start_date"):
             from django.utils import timezone
 
             filters["start_date"] = timezone.now().replace(
@@ -112,42 +120,51 @@ def send_stats_to_user():
 
         # Calculer les agrégats, balances et stats
         aggregates = TransactionService.get_transaction_aggregates(transactions)
-        balances = BalanceService.get_all_balances(
-            filters.get("start_date"), filters.get("end_date")
-        )
+        balances = BalanceService.get_all_balances()  # Balances actuelles uniquement
         stats = StatsService.get_all_stats(transactions)
 
         # Construire le message stats avec le format complet
         data = {
             "type": "stats_update",
             "context": "user_filter",
-            "data": str({
-                "filters": {
-                    "start_date": str(filters.get("start_date")),
-                    "end_date": str(filters.get("end_date")),
-                    "last": filters.get("last"),
-                    "source": filters.get("source", []),
-                    "network": filters.get("network", []),
-                    "api": filters.get("api", []),
-                    "mobcash": filters.get("mobcash", []),
-                    "type": filters.get("type", []),
-                },
-                "total": aggregates.get("total"),
-                "mobcash_fee": float(aggregates.get("mobcash_fee")),
-                "blaffa_fee": float(aggregates.get("blaffa_fee")),
-                "amount": float(aggregates.get("amount")),
-                "mobcash_stats": stats.get("mobcash_stats"),
-                "api_stats": stats.get("api_stats"),
-                "network_stats": stats.get("network_stats"),
-                "source_stats": stats.get("source_stats"),
-                "type_stats": stats.get("type_stats"),
-                "balances": balances,
-            }),
+            "data": str(
+                {
+                    "filters": {
+                        "start_date": (
+                            str(filters.get("start_date"))
+                            if filters.get("start_date")
+                            else None
+                        ),
+                        "end_date": (
+                            str(filters.get("end_date"))
+                            if filters.get("end_date")
+                            else None
+                        ),
+                        "last": filters.get("last"),
+                        "is_all_date": filters.get("is_all_date", False),
+                        "source": filters.get("source", []),
+                        "network": filters.get("network", []),
+                        "api": filters.get("api", []),
+                        "mobcash": filters.get("mobcash", []),
+                        "type": filters.get("type", []),
+                    },
+                    "total": aggregates.get("total"),
+                    "mobcash_fee": float(aggregates.get("mobcash_fee")),
+                    "blaffa_fee": float(aggregates.get("blaffa_fee")),
+                    "amount": float(aggregates.get("amount")),
+                    "mobcash_stats": stats.get("mobcash_stats"),
+                    "api_stats": stats.get("api_stats"),
+                    "network_stats": stats.get("network_stats"),
+                    "source_stats": stats.get("source_stats"),
+                    "type_stats": stats.get("type_stats"),
+                    "balances": balances,
+                }
+            ),
         }
 
         # Envoyer via WebSocket
-        response= {}
-        message="1111111111111111111"
+        response = {}
+        message = "1111111111111111111"
         pusher_client.trigger(
             f"private-channel_1",
             "stat_data",
@@ -201,19 +218,17 @@ class ResetUserTransactionFilterView(decorators.APIView):
 
     def post(self, request, *args, **kwargs):
         today = timezone.localtime().date()
-        start_datetime = timezone.make_aware(
-            datetime.combine(today, time(hour=0, minute=1))
-        )
 
         defaults = {
             "last": None,
-            "start_date": start_datetime,
+            "start_date": None,
             "end_date": None,
             "source": [],
             "network": [],
             "api": [],
             "type": [],
             "mobcash": [],
+            "is_all_date": True
         }
         filter_obj, created = UserTransactionFilter.objects.update_or_create(
             user=request.user, defaults=defaults
