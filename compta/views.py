@@ -127,7 +127,7 @@ def send_stats_to_user():
         data = {
             "type": "stats_update",
             "context": "user_filter",
-            "data": str(
+            "data": json.dumps(
                 {
                     "filters": {
                         "start_date": (
