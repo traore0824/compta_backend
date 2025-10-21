@@ -4,6 +4,7 @@ from django.utils.dateparse import parse_datetime
 from datetime import timedelta
 from compta.models import UserTransactionFilter
 from django.contrib.auth.models import User
+from django.db.models import Q
 
 
 class FilterService:
@@ -149,6 +150,7 @@ class FilterService:
     def apply_filters(queryset, filters: Dict[str, Any]):
         """
         Applique tous les filtres à un QuerySet de transactions
+        ✅ Utilise __iexact pour ignorer la casse (majuscules/minuscules)
         """
         # Si is_all_date = True, ne pas filtrer par dates
         if not filters.get("is_all_date"):
@@ -160,23 +162,43 @@ class FilterService:
             if end_date:
                 queryset = queryset.filter(created_at__lte=end_date)
 
-        # Filtres sur les choix
+        # Filtres sur les choix (insensibles à la casse)
         source_list = filters.get("source", [])
         network_list = filters.get("network", [])
         api_list = filters.get("api", [])
         type_list = filters.get("type", [])
         mobcash_list = filters.get("mobcash", [])
 
+        # ✅ Utiliser Q avec __iexact pour chaque valeur
         if source_list:
-            queryset = queryset.filter(source__in=source_list)
+            q_objects = Q()
+            for source in source_list:
+                q_objects |= Q(source__iexact=source)
+            queryset = queryset.filter(q_objects)
+
         if network_list:
-            queryset = queryset.filter(network__in=network_list)
+            q_objects = Q()
+            for network in network_list:
+                q_objects |= Q(network__iexact=network)
+            queryset = queryset.filter(q_objects)
+
         if api_list:
-            queryset = queryset.filter(api__in=api_list)
+            q_objects = Q()
+            for api in api_list:
+                q_objects |= Q(api__iexact=api)
+            queryset = queryset.filter(q_objects)
+
         if type_list:
-            queryset = queryset.filter(type__in=type_list)
+            q_objects = Q()
+            for type_val in type_list:
+                q_objects |= Q(type__iexact=type_val)
+            queryset = queryset.filter(q_objects)
+
         if mobcash_list:
-            queryset = queryset.filter(mobcash__in=mobcash_list)
+            q_objects = Q()
+            for mobcash in mobcash_list:
+                q_objects |= Q(mobcash__iexact=mobcash)
+            queryset = queryset.filter(q_objects)
 
         return queryset
 
@@ -199,3 +221,4 @@ class FilterService:
                 "mobcash": filters.get("mobcash", []),
             },
         )
+
