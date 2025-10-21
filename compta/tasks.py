@@ -5,7 +5,7 @@ from compta.models import Transaction, APITransaction, MobCashApp
 import requests
 from django.db.models import Sum
 from django.utils.formats import number_format
-from compta.view_2 import send_telegram_message
+from compta.view_2 import send_stats_to_user, send_telegram_message
 from celery import shared_task
 
 from compta.views import get_api_balance, get_mobcash_balance
@@ -79,3 +79,4 @@ def send_compta_summary():
 def update_balance_api():
     get_api_balance()
     get_mobcash_balance()
+    send_stats_to_user()
