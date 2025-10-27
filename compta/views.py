@@ -421,7 +421,7 @@ def update_mobcash_balance(transaction: Transaction):
     mobcash_balance = transaction.mobcash_balance
     if mobcash_balance is None or mobcash_balance==0:
         return
-    mobcash_balance_instance = APITransaction.objects.filter(
+    mobcash_balance_instance = MobCashApp.objects.filter(
         name=transaction.mobcash
     ).first()
     mobcash_balance_instance.balance = mobcash_balance
