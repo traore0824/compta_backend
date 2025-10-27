@@ -8,7 +8,7 @@ from channels.layers import get_channel_layer
 from datetime import time, datetime
 from django.contrib.auth.models import User
 from pusher import Pusher
-from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, UserTransactionFilter
+from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Transaction, UserTransactionFilter
 from compta.serializers import APITransactionSerializer, MobCashAppSerializer, PusherAuthSerializer, TransactionSerializer, UserTransactionFilterSerializer
 from compta.services.filter_service import FilterService
 from compta.services.balance_service import BalanceService
@@ -214,6 +214,8 @@ class CreateTransaction(decorators.APIView):
         serializer = TransactionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
+        update_api_transaction_balance(transaction=transaction)
+        update_mobcash_balance(transaction=transaction)
         send_stats_to_user()
         return Response(TransactionSerializer(transaction).data)
 
@@ -400,3 +402,26 @@ class AuthenPusherUser(decorators.APIView):
             return Response({"erreur": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response(auth, status=status.HTTP_200_OK)
+
+
+def update_api_transaction_balance(transaction:Transaction):
+
+    api_balance = transaction.api_balance
+    api_balance_instance = APITransaction.objects.filter(name=transaction.api).first()
+    api_balance_instance.balance=api_balance
+    api_balance_instance.save()
+    APIBalanceUpdate.objects.create(
+        api_transaction=api_balance_instance, balance=api_balance
+    )
+
+
+def update_mobcash_balance(transaction: Transaction):
+    mobcash_balance = transaction.mobcash_balance
+    mobcash_balance_instance = APITransaction.objects.filter(
+        name=transaction.mobcash
+    ).first()
+    mobcash_balance_instance.balance = mobcash_balance
+    mobcash_balance_instance.save()
+    MobCashAppBalanceUpdate.objects.create(
+        mobcash_balance=mobcash_balance_instance, balance=mobcash_balance
+    )
