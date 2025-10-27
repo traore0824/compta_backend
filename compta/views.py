@@ -425,3 +425,4 @@ def update_mobcash_balance(transaction: Transaction):
     MobCashAppBalanceUpdate.objects.create(
         mobcash_balance=mobcash_balance_instance, balance=mobcash_balance
     )
+
