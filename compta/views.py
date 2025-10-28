@@ -7,6 +7,7 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from datetime import time, datetime
 from django.contrib.auth.models import User
+from compta.tasks import send_compta_summary
 from pusher import Pusher
 from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Transaction, UserTransactionFilter
 from compta.serializers import APITransactionSerializer, MobCashAppSerializer, PusherAuthSerializer, TransactionSerializer, UserTransactionFilterSerializer
@@ -217,8 +218,6 @@ def update_all_balance_process(transaction_id):
     send_stats_to_user()
 
 
-
-
 class CreateTransaction(decorators.APIView):
     def post(self, request, *args, **kwargs):
         serializer = TransactionSerializer(data=request.data)
@@ -381,7 +380,7 @@ class MobCashBalance(decorators.APIView):
 
 class TestView(decorators.APIView):
     def post(self, request, *args, **kwargs):
-        response = send_stats_to_user()
+        response = send_compta_summary()
         return Response({"response": response})
 
 
