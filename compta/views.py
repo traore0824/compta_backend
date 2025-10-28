@@ -15,6 +15,7 @@ from compta.services.balance_service import BalanceService
 from compta.services.stats_services import StatsService
 from compta.services.transaction_service import TransactionService
 from django.utils import timezone
+from celery import shared_task
 pusher_client = Pusher(
     app_id=os.getenv("PUSER_ID"),
     key=os.getenv("PUSHER_KEY"),
@@ -209,14 +210,19 @@ def send_telegram_message(chat_id, content):
         return None
 
 
+@shared_task
+def update_all_balance_process(transaction_id):
+    get_api_balance()
+    update_mobcash_balance(transaction=Transaction.objects.get(id=transaction_id))
+    send_stats_to_user()
+
+
 class CreateTransaction(decorators.APIView):
     def post(self, request, *args, **kwargs):
         serializer = TransactionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
-        get_api_balance()
-        update_mobcash_balance(transaction=transaction)
-        send_stats_to_user()
+        update_all_balance_process.delay(transaction.id)
         return Response(TransactionSerializer(transaction).data)
 
 
