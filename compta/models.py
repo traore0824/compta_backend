@@ -109,6 +109,7 @@ class Notification(models.Model):
 class UserTransactionFilter(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     last = models.CharField(max_length=20, null=True, blank=True)
+    periode = models.CharField(max_length=150, blank=True, null=True)
     start_date = models.DateTimeField(null=True, blank=True)
     end_date = models.DateTimeField(null=True, blank=True)
     is_all_date = models.BooleanField(default=False)

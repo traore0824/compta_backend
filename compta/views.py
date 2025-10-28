@@ -253,7 +253,8 @@ class ResetUserTransactionFilterView(decorators.APIView):
             "api": [],
             "type": [],
             "mobcash": [],
-            "is_all_date": True
+            "is_all_date": True,
+            "periode": None,
         }
         filter_obj, created = UserTransactionFilter.objects.update_or_create(
             user=request.user, defaults=defaults
