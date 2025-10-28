@@ -30,6 +30,7 @@ class FilterService:
                 request.GET.getlist("api"),
                 request.GET.getlist("type"),
                 request.GET.getlist("mobcash"),
+                request.GET.get("periode")
                 
             ]
         )
@@ -47,6 +48,7 @@ class FilterService:
                 "api": request.GET.getlist("api"),
                 "type": request.GET.getlist("type"),
                 "mobcash": request.GET.getlist("mobcash"),
+                "periode": request.GET.get("periode"),
             }
         else:
             # Charger le dernier filtre sauvegardé de l'utilisateur
@@ -85,6 +87,7 @@ class FilterService:
                 "api": user_filter.api or [],
                 "type": user_filter.type or [],
                 "mobcash": user_filter.mobcash or [],
+                "periode": user_filter.periode,
             }
         except UserTransactionFilter.DoesNotExist:
             # Valeurs par défaut si aucun filtre sauvegardé
@@ -220,6 +223,6 @@ class FilterService:
                 "api": filters.get("api", []),
                 "type": filters.get("type", []),
                 "mobcash": filters.get("mobcash", []),
+                "periode": filters.get("periode"),
             },
         )
-
