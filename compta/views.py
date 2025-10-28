@@ -214,7 +214,7 @@ class CreateTransaction(decorators.APIView):
         serializer = TransactionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
-        update_api_transaction_balance(transaction=transaction)
+        get_api_balance()
         update_mobcash_balance(transaction=transaction)
         send_stats_to_user()
         return Response(TransactionSerializer(transaction).data)
