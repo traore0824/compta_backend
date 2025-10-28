@@ -217,6 +217,8 @@ def update_all_balance_process(transaction_id):
     send_stats_to_user()
 
 
+
+
 class CreateTransaction(decorators.APIView):
     def post(self, request, *args, **kwargs):
         serializer = TransactionSerializer(data=request.data)

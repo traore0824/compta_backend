@@ -18,61 +18,106 @@ def send_compta_summary():
 
     # Transactions récentes
     recent_transactions = Transaction.objects.filter(created_at__gte=twelve_hours_ago)
-    depot_count = recent_transactions.filter(type="depot").count()
-    retrait_count = recent_transactions.filter(type="retrait").count()
 
-    # Balances
-    api_balance_total = (
-        APITransaction.objects.aggregate(total=Sum("balance"))["total"] or 0
-    )
-    mobcash_balance_total = (
-        MobCashApp.objects.aggregate(total=Sum("balance"))["total"] or 0
-    )
-    total_balance = api_balance_total + mobcash_balance_total
+    total_transactions = recent_transactions.count()
+    depot_transactions = recent_transactions.filter(type="depot")
+    retrait_transactions = recent_transactions.filter(type="retrait")
 
-    # Formatage des montants en FCFA
-    api_balance_str = (
-        number_format(api_balance_total, decimal_pos=0, use_l10n=True) + " FCFA"
-    )
-    mobcash_balance_str = (
-        number_format(mobcash_balance_total, decimal_pos=0, use_l10n=True) + " FCFA"
-    )
-    total_balance_str = (
-        number_format(total_balance, decimal_pos=0, use_l10n=True) + " FCFA"
-    )
+    # Montants totaux
+    montant_depot = depot_transactions.aggregate(total=Sum("amount"))["total"] or 0
+    montant_retrait = retrait_transactions.aggregate(total=Sum("amount"))["total"] or 0
+    montant_total = montant_depot + montant_retrait
 
-    # Frais Mobcash sur les transactions
-    deposit_fee = (
-        recent_transactions.filter(type="depot").aggregate(total=Sum("mobcash_fee"))[
-            "total"
+    # Commissions
+    commission_depot = (
+        depot_transactions.aggregate(total=Sum("mobcash_fee"))["total"] or 0
+    )
+    commission_retrait = (
+        retrait_transactions.aggregate(total=Sum("mobcash_fee"))["total"] or 0
+    )
+    commission_totale = commission_depot + commission_retrait
+
+    # Soldes API individuels
+    api_qs = APITransaction.objects.all()
+    solde_api_details = "\n".join(
+        [
+            f"   • **{api.name} :** `{number_format(api.balance, decimal_pos=0, use_l10n=True)} FCFA`"
+            for api in api_qs
         ]
-        or 0
     )
-    retrait_fee = (
-        recent_transactions.filter(type="retrait").aggregate(total=Sum("mobcash_fee"))[
-            "total"
+    solde_api_total = sum(api.balance for api in api_qs)
+
+    # Soldes MobCashApp individuels
+    mobcash_qs = MobCashApp.objects.all()
+    solde_mobcash_details = "\n".join(
+        [
+            f"   • **{app.name} :** `{number_format(app.balance, decimal_pos=0, use_l10n=True)} FCFA`"
+            for app in mobcash_qs
         ]
-        or 0
+    )
+    solde_mobcash_total = sum(app.balance for app in mobcash_qs)
+
+    # Formatage général
+    montant_depot_str = (
+        number_format(montant_depot, decimal_pos=0, use_l10n=True) + " FCFA"
+    )
+    montant_retrait_str = (
+        number_format(montant_retrait, decimal_pos=0, use_l10n=True) + " FCFA"
+    )
+    montant_total_str = (
+        number_format(montant_total, decimal_pos=0, use_l10n=True) + " FCFA"
     )
 
-    deposit_fee_str = number_format(deposit_fee, decimal_pos=0, use_l10n=True) + " FCFA"
-    retrait_fee_str = number_format(retrait_fee, decimal_pos=0, use_l10n=True) + " FCFA"
-
-    # Message final
-    message = (
-        f"📊 *Résumé des dernières 12 heures*\n\n"
-        f"✅ Total des Dépôts : {depot_count}\n"+
-        f"❌ Total des Retraits : {retrait_count}\n\n"
-        f"💸 *Commission Genere*\n"
-        f"• Sur dépôts : {deposit_fee_str}\n"
-        f"• Sur retraits : {retrait_fee_str}\n\n"
-        f"💼 *Solde actuel*\n"
-        f"• Soldes (API) : {api_balance_str}\n"
-        f"• Solde des APPs : {mobcash_balance_str}\n"
-        f"🔢 Solde total : {total_balance_str}\n\n"
+    commission_depot_str = (
+        number_format(commission_depot, decimal_pos=0, use_l10n=True) + " FCFA"
+    )
+    commission_retrait_str = (
+        number_format(commission_retrait, decimal_pos=0, use_l10n=True) + " FCFA"
+    )
+    commission_totale_str = (
+        number_format(commission_totale, decimal_pos=0, use_l10n=True) + " FCFA"
     )
 
-    return send_telegram_message("", message)
+    solde_api_total_str = (
+        number_format(solde_api_total, decimal_pos=0, use_l10n=True) + " FCFA"
+    )
+    solde_mobcash_total_str = (
+        number_format(solde_mobcash_total, decimal_pos=0, use_l10n=True) + " FCFA"
+    )
+
+    date_du_jour = now.strftime("%d/%m/%Y")
+    heure_update = now.strftime("%H:%M")
+
+    # Message Telegram
+    message = f"""
+        📊 *Rapport de Comptabilité — {date_du_jour}*
+
+        💰 *Transactions Totales:* `{total_transactions}`
+
+        🔺 *Dépôts*
+        • **Montant :** `{montant_depot_str}`
+        • **Commission :** `{commission_depot_str}`
+
+        🔻 *Retraits*
+        • **Montant :** `{montant_retrait_str}`
+        • **Commission :** `{commission_retrait_str}`
+
+        📈 *Résumé général*
+        • **Total montants :** `{montant_total_str}`
+        • **Total commissions :** `{commission_totale_str}`
+
+        🏦 *Soldes API de Transactions*
+        {solde_api_details}
+        ➤ **Total API :** `{solde_api_total_str}`
+
+        💼 *Soldes Apps Mobcash*
+        {solde_mobcash_details}
+        ➤ **Total Mobcash :** `{solde_mobcash_total_str}`
+
+        🕓 *Dernière mise à jour :* `{heure_update}`
+        """
+
+    return send_telegram_message(content=message, chat_id="5475155671")
 
 
 @shared_task
