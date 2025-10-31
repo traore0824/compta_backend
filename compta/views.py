@@ -218,7 +218,6 @@ class CreateTransaction(decorators.APIView):
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
         from compta.tasks import update_all_balance_process
-
         update_all_balance_process.delay(transaction.id)
         return Response(TransactionSerializer(transaction).data)
 
