@@ -8,7 +8,7 @@ from django.utils.formats import number_format
 from compta.view_2 import send_stats_to_user, send_telegram_message
 from celery import shared_task
 
-from compta.views import get_api_balance, get_mobcash_balance
+from compta.views import get_api_balance, get_mobcash_balance, update_mobcash_balance
 
 
 @shared_task
@@ -124,4 +124,11 @@ def send_compta_summary():
 def update_balance_api():
     get_api_balance()
     get_mobcash_balance()
+    send_stats_to_user()
+
+
+@shared_task
+def update_all_balance_process(transaction_id):
+    get_api_balance()
+    update_mobcash_balance(transaction=Transaction.objects.get(id=transaction_id))
     send_stats_to_user()

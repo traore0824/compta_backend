@@ -8,6 +8,7 @@ from channels.layers import get_channel_layer
 from datetime import time, datetime
 from django.contrib.auth.models import User
 
+
 from pusher import Pusher
 from compta.models import APIBalanceUpdate, APITransaction, MobCashApp, MobCashAppBalanceUpdate, Transaction, UserTransactionFilter
 from compta.serializers import APITransactionSerializer, MobCashAppSerializer, PusherAuthSerializer, TransactionSerializer, UserTransactionFilterSerializer
@@ -211,18 +212,13 @@ def send_telegram_message(chat_id, content):
         return None
 
 
-@shared_task
-def update_all_balance_process(transaction_id):
-    get_api_balance()
-    update_mobcash_balance(transaction=Transaction.objects.get(id=transaction_id))
-    send_stats_to_user()
-
-
 class CreateTransaction(decorators.APIView):
     def post(self, request, *args, **kwargs):
         serializer = TransactionSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         transaction = serializer.save()
+        from compta.tasks import update_all_balance_process
+
         update_all_balance_process.delay(transaction.id)
         return Response(TransactionSerializer(transaction).data)
 
