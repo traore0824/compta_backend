@@ -283,7 +283,7 @@ class APITransactionUpdateView(generics.RetrieveUpdateAPIView):
 
 
 def get_api_balance():
-    url = "https://api.blaffa.net/blaffa/balance"
+    url = "https://api.yapson.net/yapson/balance"
     headers = {
         "Content-Type": "application/json",
     }
@@ -316,13 +316,13 @@ def get_api_balance():
                         continue
 
         return data
-    
+
     except Exception as e:
         return {"error": str(e)}
 
 
 def get_mobcash_balance():
-    url = "https://api.blaffa.net/blaffa/mobcash-balance"
+    url = "https://api.yapson.net/yapson/mobcash-balance"
     headers = {
         "Content-Type": "application/json",
     }
