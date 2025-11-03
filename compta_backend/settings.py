@@ -40,7 +40,7 @@ INSTALLED_APPS = [
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
-    "daphne",
+    # "daphne",
     "django.contrib.staticfiles",
     "django_filters",
     "rest_framework",
