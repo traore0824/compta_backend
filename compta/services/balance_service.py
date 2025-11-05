@@ -31,6 +31,9 @@ class BalanceService:
         """
         Récupère les balances actuelles de toutes les API
         """
+        from compta.views import get_api_balance, get_mobcash_balance
+
+        get_api_balance()
         api_balances = {}
 
         for api_obj in APITransaction.objects.all():
@@ -43,6 +46,9 @@ class BalanceService:
         """
         Récupère les balances actuelles de toutes les MobCashApp
         """
+        from compta.views import get_api_balance, get_mobcash_balance
+
+        get_mobcash_balance()
         mobcash_balances = {}
 
         for mobcash_obj in MobCashApp.objects.all():
