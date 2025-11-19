@@ -40,6 +40,7 @@ class ComptatView(decorators.APIView):
 
     def get(self, request, *args, **kwargs):
         # 1. Parser les filtres
+        
         filters = FilterService.parse_filters_from_request(request)
 
         # 2. Gérer is_all_date (toutes les dates depuis la création)
