@@ -31,19 +31,6 @@ class TransactionSerializer(serializers.ModelSerializer):
             ) / 100
 
         transaction = Transaction.objects.create(**validated_data)
-
-        alerts = []
-
-        for alert in alerts:
-            send_telegram_message(
-                chat_id=os.getenv("ADMIN_CHAT_ID"), content=alert["content"]
-            )
-            Notification.objects.create(
-                reference=transaction.reference,
-                title=alert["title"],
-                content=alert["content"],
-            )
-
         return transaction
 
 

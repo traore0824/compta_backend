@@ -117,7 +117,7 @@ def send_compta_summary():
         🕓 *Dernière mise à jour :* `{heure_update}`
         """
 
-    return send_telegram_message(content=message, chat_id="5475155671")
+    return send_telegram_message(content=message, chat_id="6605816009")
 
 
 @shared_task
