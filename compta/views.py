@@ -283,7 +283,7 @@ class APITransactionUpdateView(generics.RetrieveUpdateAPIView):
 
 
 def get_api_balance():
-    url = "http://api.coobet.app/coobet/balance"
+    url = "https://api.turaincash.com/mobcash/balance"
     headers = {
         "Content-Type": "application/json",
     }
@@ -322,7 +322,7 @@ def get_api_balance():
 
 
 def get_mobcash_balance():
-    url = "http://api.coobet.app/coobet/mobcash-balance"
+    url = "https://api.turaincash.com/mobcash/mobcash-balance"
     headers = {
         "Content-Type": "application/json",
     }
