@@ -20,6 +20,7 @@ API_CHOICES = [
     ("bpay", "BPay"),
     ("barkapay", "BarkaPay"),
     ("connect", "Connect"),
+    ("Qosic", "Qosic"),
 ]
 
 NETWORK_CHOICES = [
@@ -27,6 +28,7 @@ NETWORK_CHOICES = [
     ("moov", "Moov"),
     ("orange", "Orange"),
     ("wave", "Wave"),
+    ("sbin", "sbin"),
 ]
 
 

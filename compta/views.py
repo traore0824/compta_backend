@@ -283,7 +283,7 @@ class APITransactionUpdateView(generics.RetrieveUpdateAPIView):
 
 
 def get_api_balance():
-    url = "https://api.yapson.net/yapson/balance"
+    url = "http://api.coobet.app/coobet/balance"
     headers = {
         "Content-Type": "application/json",
     }
@@ -322,7 +322,7 @@ def get_api_balance():
 
 
 def get_mobcash_balance():
-    url = "https://api.yapson.net/yapson/mobcash-balance"
+    url = "http://api.coobet.app/coobet/mobcash-balance"
     headers = {
         "Content-Type": "application/json",
     }

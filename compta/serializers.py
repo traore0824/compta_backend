@@ -17,7 +17,6 @@ class TransactionSerializer(serializers.ModelSerializer):
         mobcash_name = validated_data.get("mobcash")
         transaction_type = validated_data.get("type")
         api_name = validated_data.get("api")
-
         mobcash_config, _ = MobCashApp.objects.get_or_create(name=mobcash_name)
         api_config, _ = APITransaction.objects.get_or_create(name=api_name)
 
