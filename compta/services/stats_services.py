@@ -102,7 +102,7 @@ class StatsService:
         total_transactions = transactions.count()
 
         for api_transaction in api_transactions:
-            api = api_transaction.name.lower()
+            api = api_transaction.name
             txs = transactions.filter(api=api)
             total = txs.count()
             total_amount = txs.aggregate(total=Sum("amount"))["total"] or 0
