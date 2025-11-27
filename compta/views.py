@@ -25,6 +25,7 @@ pusher_client = Pusher(
     cluster="eu",
     ssl=False,
 )
+
 class ComptatView(decorators.APIView):
     """
     Vue principale pour récupérer les statistiques de comptabilité
