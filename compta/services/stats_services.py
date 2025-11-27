@@ -92,6 +92,7 @@ class StatsService:
 
         return sorted_data
 
+
     @staticmethod
     def get_api_stats(transactions: QuerySet) -> OrderedDict:
         """
