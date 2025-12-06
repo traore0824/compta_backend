@@ -330,33 +330,50 @@ def get_mobcash_balance():
     try:
         response = requests.get(url=url, headers=headers)
         response.raise_for_status()
-        balances = response.json()  
-        balance_dict = {
-            item["app_name"].lower(): item["solde"]
-            for item in balances
-            if "app_name" in item and "solde" in item
-        }
+        balances = response.json()
 
-        for mobcash in MobCashApp.objects.all():
-            app_name = mobcash.name.lower()
+        for item in balances:
+            if "app_name" not in item or "solde" not in item:
+                continue
 
-            if app_name in balance_dict:
-                balance_value = balance_dict[app_name]
+            app_name = item["app_name"]
+            balance_value = item["solde"]
+            app_image = item.get("app_image", "")
+            balance_limit = item.get("balance_limit", 0)
 
-                try:
-                    balance = float(balance_value)
+            try:
+                balance = float(balance_value)
+                limit = float(balance_limit) if balance_limit else balance
+
+                # Créer ou récupérer l'application MobCash
+                mobcash, created = MobCashApp.objects.get_or_create(
+                    name=app_name,
+                    defaults={
+                        "balance": balance,
+                        "image": app_image,
+                        "balance_limit": limit,
+                    },
+                )
+
+                if created:
+                    print(f"✅ Nouvelle application créée : {app_name}")
+                else:
+                    # Mettre à jour si elle existe déjà
                     mobcash.balance = balance
+                    mobcash.image = app_image
+                    mobcash.balance_limit = limit
                     mobcash.save()
 
-                    MobCashAppBalanceUpdate.objects.create(
-                        mobcash_balance=mobcash, balance=balance
-                    )
+                # Créer l'enregistrement historique
+                MobCashAppBalanceUpdate.objects.create(
+                    mobcash_balance=mobcash, balance=balance
+                )
 
-                except (ValueError, TypeError):
-                    # Balance invalide ou non convertible
-                    continue
+            except (ValueError, TypeError) as e:
+                print(f"⚠️ Erreur pour {app_name}: {e}")
+                continue
 
-        return balance_dict
+        return {"success": True, "count": len(balances)}
 
     except Exception as e:
         return {"error": str(e)}
