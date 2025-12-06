@@ -332,6 +332,9 @@ def get_mobcash_balance():
         response.raise_for_status()
         balances = response.json()
 
+        # Créer le dictionnaire de retour comme avant
+        balance_dict = {}
+
         for item in balances:
             if "app_name" not in item or "solde" not in item:
                 continue
@@ -339,11 +342,12 @@ def get_mobcash_balance():
             app_name = item["app_name"]
             balance_value = item["solde"]
             app_image = item.get("app_image", "")
-            balance_limit = item.get("balance_limit", 0)
 
             try:
                 balance = float(balance_value)
-                limit = float(balance_limit) if balance_limit else balance
+
+                # Ajouter au dictionnaire de retour
+                balance_dict[app_name.lower()] = balance
 
                 # Créer ou récupérer l'application MobCash
                 mobcash, created = MobCashApp.objects.get_or_create(
@@ -351,7 +355,6 @@ def get_mobcash_balance():
                     defaults={
                         "balance": balance,
                         "image": app_image,
-                        
                     },
                 )
 
@@ -361,7 +364,6 @@ def get_mobcash_balance():
                     # Mettre à jour si elle existe déjà
                     mobcash.balance = balance
                     mobcash.image = app_image
-                    mobcash.balance_limit = limit
                     mobcash.save()
 
                 # Créer l'enregistrement historique
@@ -373,7 +375,7 @@ def get_mobcash_balance():
                 print(f"⚠️ Erreur pour {app_name}: {e}")
                 continue
 
-        return {"success": True, "count": len(balances)}
+        return balance_dict
 
     except Exception as e:
         return {"error": str(e)}
