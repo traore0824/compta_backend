@@ -351,7 +351,7 @@ def get_mobcash_balance():
                     defaults={
                         "balance": balance,
                         "image": app_image,
-                        "balance_limit": limit,
+                        
                     },
                 )
 
