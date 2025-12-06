@@ -53,5 +53,6 @@ class BalanceService:
 
         for mobcash_obj in MobCashApp.objects.all():
             mobcash_balances[mobcash_obj.name] = mobcash_obj.balance
+            
 
         return mobcash_balances
